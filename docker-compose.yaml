@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  audiobookbay-automated:
+    image: jamesry96/audiobookbay-automated:latest
+    ports:
+      - "5078:5078"
+    container_name: audiobookbay-automated
+    environment:
+      - QB_HOST=${QB_HOST}
+      - QB_PORT=${QB_PORT}
+      - QB_USERNAME=${QB_USERNAME}
+      - QB_PASSWORD=${QB_PASSWORD}
+      - QB_CATEGORY=${QB_CATEGORY}
+      - SAVE_PATH_BASE=${SAVE_PATH_BASE}
+      - NAV_LINK_NAME=${NAV_LINK_NAME}
+      - NAV_LINK_URL=${NAV_LINK_URL}
+    env_file:
+      - .env

@@ -1,18 +1,32 @@
-import re
+import os, re, requests
 from flask import Flask, request, render_template, jsonify
-import requests
 from bs4 import BeautifulSoup
 from qbittorrentapi import Client
-
+from dotenv import load_dotenv
 app = Flask(__name__)
 
-# qBittorrent Configuration
-QB_HOST = "192.168.12.153"
-QB_PORT = 8080
-QB_USERNAME = "admin" #Change to your qBittorrent username
-QB_PASSWORD = "CHANGEME" #Change to your qBittorrent password
-QB_CATEGORY = "abb-downloader" 
-SAVE_PATH_BASE = "/audiobooks" #Change to where you want your audiobooks to be saved relative to the qbittorent client
+#Load environment variables
+load_dotenv()
+QB_HOST = os.getenv("QB_HOST")
+QB_PORT = os.getenv("QB_PORT")
+QB_USERNAME = os.getenv("QB_USERNAME")
+QB_PASSWORD = os.getenv("QB_PASSWORD")
+QB_CATEGORY = os.getenv("QB_CATEGORY")
+SAVE_PATH_BASE = os.getenv("SAVE_PATH_BASE")
+
+# Custom Nav Link Variables
+NAV_LINK_NAME = os.getenv("NAV_LINK_NAME")
+NAV_LINK_URL = os.getenv("NAV_LINK_URL")
+
+
+@app.context_processor
+def inject_nav_link():
+    return {
+        'nav_link_name': os.getenv('NAV_LINK_NAME'),
+        'nav_link_url': os.getenv('NAV_LINK_URL')
+    }
+
+
 
 # Helper function to search AudiobookBay
 def search_audiobookbay(query, max_pages=5):
@@ -32,7 +46,7 @@ def search_audiobookbay(query, max_pages=5):
             try:
                 title = post.select_one('.postTitle > h2 > a').text.strip()
                 link = f"https://audiobookbay.lu{post.select_one('.postTitle > h2 > a')['href']}"
-                cover = post.select_one('img')['src'] if post.select_one('img') else "/images/default-cover.jpg"
+                cover = post.select_one('img')['src'] if post.select_one('img') else "/static/images/default-cover.jpg"
                 results.append({'title': title, 'link': link, 'cover': cover})
             except Exception as e:
                 print(f"[ERROR] Skipping post due to error: {e}")
@@ -116,6 +130,27 @@ def send_to_qb():
         return jsonify({'message': f'Download added successfully! This may take some time, the download will show in Audiobookshelf when completed.'})
     except Exception as e:
         return jsonify({'message': str(e)}), 500
+
+@app.route('/status')
+def status():
+    try:
+        qb = Client(host=QB_HOST, port=QB_PORT, username=QB_USERNAME, password=QB_PASSWORD)
+        qb.auth_log_in()
+        torrents = qb.torrents_info(category=QB_CATEGORY)
+        torrent_list = [
+            {
+                'name': torrent.name,
+                'progress': round(torrent.progress * 100, 2),
+                'state': torrent.state,
+                'size': f"{torrent.total_size / (1024 * 1024):.2f} MB"
+            }
+            for torrent in torrents
+        ]
+        return render_template('status.html', torrents=torrent_list)
+    except Exception as e:
+        return jsonify({'message': f"Failed to fetch torrent status: {e}"}), 500
+
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5078)

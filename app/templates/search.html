@@ -1,0 +1,55 @@
+{% extends "base.html" %}
+
+{% block title %}Search{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/search.css') }}">
+{% endblock %}
+
+{% block content %}
+
+<div class="title-container">
+    <h1>Search AudiobookBay</h1>
+</div>
+<form method="post" class="search-container" onsubmit="showLoadingSpinner()">
+    <input type="text" name="query" placeholder="Enter book name" class="search-bar" required>
+    <button type="submit" class="search-button">Search</button>
+</form>
+
+<div class="loading-spinner" id="loading-spinner">
+    <div class="spinner"></div>
+    <p>Searching...</p>
+</div>
+
+<table>
+    <tbody>
+        {% for book in books %}
+        <tr>
+            <td><img src="{{ book.cover }}" alt="Cover Art" class="cover" width="100"></td>
+            <td>{{ book.title }}</td>
+            <td> 
+                <button onclick="window.open('{{ book.link }}', '_blank')">Details</button>
+                <button onclick="sendToQB('{{ book.link|escape }}', '{{ book.title|escape }}')">Download to Server</button>
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+
+<script>
+    function showLoadingSpinner() {
+        const spinner = document.getElementById('loading-spinner');
+        spinner.style.display = 'flex';
+    }
+
+    function sendToQB(link, title) {
+        fetch('/send', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ link: link, title: title })
+        }).then(response => response.json())
+          .then(data => alert(data.message));
+    }
+</script>
+
+{% endblock %}
