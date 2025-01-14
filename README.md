@@ -1,27 +1,27 @@
 
 # AudiobookBay Automated
 
-AudiobookBay Automated is a lightweight web application designed to simplify audiobook management. It allows users to search [**AudioBook Bay**](https://audiobookbay.lu/) for audiobooks and send magnet links directly to a designated **qBittorrent** client.
+AudiobookBay Automated is a lightweight web application designed to simplify audiobook management. It allows users to search [**AudioBook Bay**](https://audiobookbay.lu/) for audiobooks and send magnet links directly to a designated **qBittorrent or Transmission** client.
 
 ## How It Works
 - **Search Results**: Users search for audiobooks. The app grabs results from AudioBook Bay and displays results with the **title** and **cover image**, along with two action links:
   1. **More Details**: Opens the audiobook's page on AudioBook Bay for additional information.
-  2. **Download to Server**: Sends the audiobook to your configured qBittorrent client for downloading.
+  2. **Download to Server**: Sends the audiobook to your configured torrent client for downloading.
 
-- **Magnet Link Generation**: When a user selects "Download to Server," the app generates a magnet link from the infohash displayed on AudioBook Bay and sends it to the qBittorrent client. Along with the magnet link, the app assigns:
+- **Magnet Link Generation**: When a user selects "Download to Server," the app generates a magnet link from the infohash displayed on AudioBook Bay and sends it to the torrent client. Along with the magnet link, the app assigns:
   - A **category label** for organizational purposes.
   - A **save location** for downloaded files.
 
 
-> **Note**: This app does not download or move any material itself (including torrent files). It only searches AudioBook Bay and facilitates magnet link generation for qBittorrent.
+> **Note**: This app does not download or move any material itself (including torrent files). It only searches AudioBook Bay and facilitates magnet link generation for torrent.
 
 
 ## Features
 - **Search Audiobook Bay**: Easily search for audiobooks by title or keywords.
 - **View Details**: Displays book titles and covers with quickly links to the full details on AudioBook Bay.
-- **Basic Download Status Page**: Monitor the download status of items in your qBittorrent client that share the specified category assigned.
-- **No AudioBook Bay Account Needed**: The app automatically generates magnet links from the displayed infohashes and push them to your qBittorrent client for downloading.
-- **Automatic Folder Organization**: Once the download is complete, qBittorrent will automatically move the downloaded audiobook files to your save location. Audiobooks are organized into subfolders named after the AudioBook Bay title, making it easy for [**Audiobookshelf**](https://www.audiobookshelf.org/) to automatically add completed downloads to its library.
+- **Basic Download Status Page**: Monitor the download status of items in your torrent client that share the specified category assigned.
+- **No AudioBook Bay Account Needed**: The app automatically generates magnet links from the displayed infohashes and push them to your torrent client for downloading.
+- **Automatic Folder Organization**: Once the download is complete, torrent will automatically move the downloaded audiobook files to your save location. Audiobooks are organized into subfolders named after the AudioBook Bay title, making it easy for [**Audiobookshelf**](https://www.audiobookshelf.org/) to automatically add completed downloads to its library.
 
 
 
@@ -33,19 +33,19 @@ AudiobookBay Downloader provides a simple and user-friendly interface for users 
 ## Installation
 
 ### Prerequisites
-- **qBittorrent** (with the WebUI enabled)
+- **qBittorrent or Transmission** (with the WebUI enabled)
 - **Docker** (optional, for containerized deployments)
 
 ### Environment Variables
 The app uses environment variables to configure its behavior. Below are the required variables:
 
 ```env
-QB_HOST=192.168.xxx.xxx        # IP or hostname of your qBittorrent instance
-QB_PORT=8080                   # qBittorrent WebUI port
-QB_USERNAME=YOUR_USER          # qBittorrent username
-QB_PASSWORD=YOUR_PASSWORD      # qBittorrent password
-QB_CATEGORY=abb-downloader     # qBittorrent category for downloads
-SAVE_PATH_BASE=/audiobooks     # Root path for audiobook downloads (relative to qBittorrent)
+DL_HOST=192.168.xxx.xxx        # IP or hostname of your qBittorrent or Transmission instance
+DL_PORT=8080                   # torrent WebUI port
+DL_USERNAME=YOUR_USER          # torrent username
+DL_PASSWORD=YOUR_PASSWORD      # torrent password
+DL_CATEGORY=abb-downloader     # torrent category for downloads
+SAVE_PATH_BASE=/audiobooks     # Root path for audiobook downloads (relative to torrent)
 ```
 The following optional variables add an additional entry to the navigation bar. This is useful for linking to your audiobook player or another related service:
 
@@ -68,11 +68,11 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
          - "5078:5078"
        container_name: audiobookbay-downloader
        environment:
-         - QB_HOST=192.168.1.123
-         - QB_PORT=8080
-         - QB_USERNAME=admin
-         - QB_PASSWORD=pass
-         - QB_CATEGORY=abb-downloader
+         - DL_HOST=192.168.1.123
+         - DL_PORT=8080
+         - DL_USERNAME=admin
+         - DL_PASSWORD=pass
+         - DL_CATEGORY=abb-downloader
          - SAVE_PATH_BASE=/audiobooks
          - NAV_LINK_NAME=Open Audiobook Player #Optional
          - NAV_LINK_URL=https://audiobooks.yourdomain.com/ #Optional
@@ -91,12 +91,13 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
    
 2. Create a .env file in the project directory to configure your application. Below is an  example of the required variables:
     ```
-    # qBittorrent Configuration
-    QB_HOST=192.168.1.123
-    QB_PORT=8080
-    QB_USERNAME=admin
-    QB_PASSWORD=pass
-    QB_CATEGORY=abb-downloader
+    # Torrent Client Configuration
+    DOWNLOAD_CLIENT=transmission # Change to transmission or qbittorrent
+    DL_HOST=192.168.1.123
+    DL_PORT=8080
+    DL_USERNAME=admin
+    DL_PASSWORD=pass
+    DL_CATEGORY=abb-downloader
     SAVE_PATH_BASE=/audiobooks
     
     # Optional Navigation Bar Entry
@@ -114,7 +115,7 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
 ## Notes
 - **This app does NOT download any material**: It simply generates magnet links and sends them to your qBittorrent client for handling.
 
-- **Folder Mapping**: __The `SAVE_PATH_BASE` is based on the perspective of your qBittorrent client__, not this app. This app does not move any files; all file handling and organization are managed by qBittorrent. Ensure that the `SAVE_PATH_BASE` in your qBittorrent client aligns with your audiobook library (e.g., for Audiobookshelf). Using a path relative to where this app is running, instead of the qBittorrent client, will cause issues.
+- **Folder Mapping**: __The `SAVE_PATH_BASE` is based on the perspective of your torrent client__, not this app. This app does not move any files; all file handling and organization are managed by the torrent client. Ensure that the `SAVE_PATH_BASE` in your torrent client aligns with your audiobook library (e.g., for Audiobookshelf). Using a path relative to where this app is running, instead of the torrent client, will cause issues.
 
 
 ---

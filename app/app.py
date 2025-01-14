@@ -2,16 +2,18 @@ import os, re, requests
 from flask import Flask, request, render_template, jsonify
 from bs4 import BeautifulSoup
 from qbittorrentapi import Client
+from transmission_rpc import Client as transmissionrpc
 from dotenv import load_dotenv
 app = Flask(__name__)
 
 #Load environment variables
 load_dotenv()
-QB_HOST = os.getenv("QB_HOST")
-QB_PORT = os.getenv("QB_PORT")
-QB_USERNAME = os.getenv("QB_USERNAME")
-QB_PASSWORD = os.getenv("QB_PASSWORD")
-QB_CATEGORY = os.getenv("QB_CATEGORY")
+DOWNLOAD_CLIENT=os.getenv("DOWNLOAD_CLIENT")
+DL_HOST = os.getenv("DL_HOST")
+DL_PORT = os.getenv("DL_PORT")
+DL_USERNAME = os.getenv("DL_USERNAME")
+DL_PASSWORD = os.getenv("DL_PASSWORD")
+DL_CATEGORY = os.getenv("DL_CATEGORY")
 SAVE_PATH_BASE = os.getenv("SAVE_PATH_BASE")
 
 # Custom Nav Link Variables
@@ -111,7 +113,7 @@ def search():
 
 # Endpoint to send magnet link to qBittorrent
 @app.route('/send', methods=['POST'])
-def send_to_qb():
+def send():
     data = request.json
     details_url = data.get('link')
     title = data.get('title')
@@ -124,28 +126,51 @@ def send_to_qb():
             return jsonify({'message': 'Failed to extract magnet link'}), 500
 
         save_path = f"{SAVE_PATH_BASE}/{sanitize_title(title)}"
-        qb = Client(host=QB_HOST, port=QB_PORT, username=QB_USERNAME, password=QB_PASSWORD)
-        qb.auth_log_in()
-        qb.torrents_add(urls=magnet_link, save_path=save_path, category=QB_CATEGORY)
+        
+        if DOWNLOAD_CLIENT == 'qbittorrent':
+            qb = Client(host=DL_HOST, port=DL_PORT, username=DL_USERNAME, password=DL_PASSWORD)
+            qb.auth_log_in()
+            qb.torrents_add(urls=magnet_link, save_path=save_path, category=DL_CATEGORY)
+        elif DOWNLOAD_CLIENT == 'transmission':
+            transmission = transmissionrpc(host=DL_HOST, port=DL_PORT, username=DL_USERNAME, password=DL_PASSWORD)
+            transmission.add_torrent(magnet_link, download_dir=save_path)
+        else:
+            return jsonify({'message': 'Unsupported download client'}), 400
+
         return jsonify({'message': f'Download added successfully! This may take some time, the download will show in Audiobookshelf when completed.'})
     except Exception as e:
         return jsonify({'message': str(e)}), 500
-
 @app.route('/status')
 def status():
     try:
-        qb = Client(host=QB_HOST, port=QB_PORT, username=QB_USERNAME, password=QB_PASSWORD)
-        qb.auth_log_in()
-        torrents = qb.torrents_info(category=QB_CATEGORY)
-        torrent_list = [
-            {
-                'name': torrent.name,
-                'progress': round(torrent.progress * 100, 2),
-                'state': torrent.state,
-                'size': f"{torrent.total_size / (1024 * 1024):.2f} MB"
-            }
-            for torrent in torrents
-        ]
+        if DOWNLOAD_CLIENT == 'transmission':
+            transmission = transmissionrpc(host=DL_HOST, port=DL_PORT, username=DL_USERNAME, password=DL_PASSWORD)
+            torrents = transmission.get_torrents()
+            torrent_list = [
+                {
+                    'name': torrent.name,
+                    'progress': round(torrent.progress, 2),
+                    'state': torrent.status,
+                    'size': f"{torrent.total_size / (1024 * 1024):.2f} MB"
+                }
+                for torrent in torrents
+            ]
+            return render_template('status.html', torrents=torrent_list)
+        elif DOWNLOAD_CLIENT == 'qbittorrent':
+            qb = Client(host=DL_HOST, port=DL_PORT, username=DL_USERNAME, password=DL_PASSWORD)
+            qb.auth_log_in()
+            torrents = qb.torrents_info(category=DL_CATEGORY)
+            torrent_list = [
+                {
+                    'name': torrent.name,
+                    'progress': round(torrent.progress * 100, 2),
+                    'state': torrent.state,
+                    'size': f"{torrent.total_size / (1024 * 1024):.2f} MB"
+                }
+                for torrent in torrents
+            ]
+        else:
+            return jsonify({'message': 'Unsupported download client'}), 400
         return render_template('status.html', torrents=torrent_list)
     except Exception as e:
         return jsonify({'message': f"Failed to fetch torrent status: {e}"}), 500
@@ -153,4 +178,4 @@ def status():
 
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5078)
+    app.run(host='0.0.0.0', port=5079)
