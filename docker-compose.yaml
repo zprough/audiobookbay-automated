@@ -7,11 +7,12 @@ services:
       - "5078:5078"
     container_name: audiobookbay-automated
     environment:
-      - QB_HOST=${QB_HOST}
-      - QB_PORT=${QB_PORT}
-      - QB_USERNAME=${QB_USERNAME}
-      - QB_PASSWORD=${QB_PASSWORD}
-      - QB_CATEGORY=${QB_CATEGORY}
+      - DOWNLOAD_CLIENT=${DOWNLOAD_CLIENT}
+      - DL_HOST=${DL_HOST}
+      - DL_PORT=${DL_PORT}
+      - DL_USERNAME=${DL_USERNAME}
+      - DL_PASSWORD=${DL_PASSWORD}
+      - DL_CATEGORY=${DL_CATEGORY}
       - SAVE_PATH_BASE=${SAVE_PATH_BASE}
       - NAV_LINK_NAME=${NAV_LINK_NAME}
       - NAV_LINK_URL=${NAV_LINK_URL}
