@@ -68,6 +68,7 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
          - "5078:5078"
        container_name: audiobookbay-downloader
        environment:
+        - DOWNLOAD_CLIENT=${DOWNLOAD_CLIENT}
          - DL_HOST=192.168.1.123
          - DL_PORT=8080
          - DL_USERNAME=admin
