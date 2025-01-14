@@ -125,3 +125,12 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
 This project is a work in progress, and your feedback is welcome! Feel free to open issues or contribute by submitting pull requests.
 
 ---
+
+## Screenshots
+### Search Results
+![screenshot-2025-01-13-19-59-03](https://github.com/user-attachments/assets/8a30fd4e-a289-49d0-83ab-67a3bcfc9745)
+
+### Download Status
+![screenshot-2025-01-13-19-59-25](https://github.com/user-attachments/assets/19cc74de-51fc-422f-9cab-fe69e30c74b9)
+
+---
