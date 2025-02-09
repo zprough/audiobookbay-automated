@@ -8,6 +8,7 @@ app = Flask(__name__)
 
 #Load environment variables
 load_dotenv()
+ABB_HOSTNAME = os.getenv("ABB_HOSTNAME", "audiobookbay.lu")
 DOWNLOAD_CLIENT=os.getenv("DOWNLOAD_CLIENT")
 DL_HOST = os.getenv("DL_HOST")
 DL_PORT = os.getenv("DL_PORT")
@@ -37,7 +38,7 @@ def search_audiobookbay(query, max_pages=5):
     }
     results = []
     for page in range(1, max_pages + 1):
-        url = f"https://audiobookbay.lu/page/{page}/?s={query.replace(' ', '+')}&cat=undefined%2Cundefined"
+        url = f"https://{ABB_HOSTNAME}/page/{page}/?s={query.replace(' ', '+')}&cat=undefined%2Cundefined"
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
             print(f"[ERROR] Failed to fetch page {page}. Status Code: {response.status_code}")
@@ -47,7 +48,7 @@ def search_audiobookbay(query, max_pages=5):
         for post in soup.select('.post'):
             try:
                 title = post.select_one('.postTitle > h2 > a').text.strip()
-                link = f"https://audiobookbay.lu{post.select_one('.postTitle > h2 > a')['href']}"
+                link = f"https://{ABB_HOSTNAME}{post.select_one('.postTitle > h2 > a')['href']}"
                 cover = post.select_one('img')['src'] if post.select_one('img') else "/static/images/default-cover.jpg"
                 results.append({'title': title, 'link': link, 'cover': cover})
             except Exception as e:
