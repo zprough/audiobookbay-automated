@@ -46,6 +46,7 @@ DL_USERNAME=YOUR_USER          # torrent username
 DL_PASSWORD=YOUR_PASSWORD      # torrent password
 DL_CATEGORY=abb-downloader     # torrent category for downloads
 SAVE_PATH_BASE=/audiobooks     # Root path for audiobook downloads (relative to torrent)
+ABB_HOSTNAME='audiobookbay.is' #Default
 ```
 The following optional variables add an additional entry to the navigation bar. This is useful for linking to your audiobook player or another related service:
 
@@ -75,6 +76,7 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
          - DL_PASSWORD=pass
          - DL_CATEGORY=abb-downloader
          - SAVE_PATH_BASE=/audiobooks
+         - ABB_HOSTNAME='audiobookbay.is' #Default
          - NAV_LINK_NAME=Open Audiobook Player #Optional
          - NAV_LINK_URL=https://audiobooks.yourdomain.com/ #Optional
    ```
