@@ -61,39 +61,46 @@ def extract_magnet_link(details_url):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
     }
-    response = requests.get(details_url, headers=headers)
-    if response.status_code != 200:
-        print(f"[ERROR] Failed to fetch details page. Status Code: {response.status_code}")
+    try:
+        response = requests.get(details_url, headers=headers)
+        if response.status_code != 200:
+            print(f"[ERROR] Failed to fetch details page. Status Code: {response.status_code}")
+            return None
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # Extract Info Hash
+        info_hash_row = soup.find('td', string=re.compile(r'Info Hash', re.IGNORECASE))
+        if not info_hash_row:
+            print("[ERROR] Info Hash not found on the page.")
+            return None
+        info_hash = info_hash_row.find_next_sibling('td').text.strip()
+
+        # Extract Trackers
+        tracker_rows = soup.find_all('td', string=re.compile(r'udp://|http://', re.IGNORECASE))
+        trackers = [row.text.strip() for row in tracker_rows]
+
+        if not trackers:
+            print("[WARNING] No trackers found on the page. Using default trackers.")
+            trackers = [
+                "udp://tracker.openbittorrent.com:80",
+                "udp://opentor.org:2710",
+                "udp://tracker.ccc.de:80",
+                "udp://tracker.blackunicorn.xyz:6969",
+                "udp://tracker.coppersurfer.tk:6969",
+                "udp://tracker.leechers-paradise.org:6969"
+            ]
+
+        # Construct the magnet link
+        trackers_query = "&".join(f"tr={requests.utils.quote(tracker)}" for tracker in trackers)
+        magnet_link = f"magnet:?xt=urn:btih:{info_hash}&{trackers_query}"
+
+        print(f"[DEBUG] Generated Magnet Link: {magnet_link}")
+        return magnet_link
+
+    except Exception as e:
+        print(f"[ERROR] Failed to extract magnet link: {e}")
         return None
-
-    soup = BeautifulSoup(response.text, 'html.parser')
-
-    # Extract Info Hash
-    infohash_tag = soup.find('td', text='Info Hash:')
-    if not infohash_tag:
-        print("[ERROR] Info Hash not found on the page.")
-        return None
-    infohash = infohash_tag.find_next_sibling('td').text.strip()
-
-    # Extract Trackers
-    trackers = [
-        tracker.text.strip()
-        for tracker in soup.select('td a[href^="udp://"]')
-    ]
-    if not trackers:
-        trackers = [
-            "udp://tracker.openbittorrent.com:80",
-            "udp://opentor.org:2710",
-            "udp://tracker.ccc.de:80",
-            "udp://tracker.blackunicorn.xyz:6969",
-            "udp://tracker.coppersurfer.tk:6969",
-            "udp://tracker.leechers-paradise.org:6969"
-        ]
-
-    trackers_query = "&".join(f"tr={tracker}" for tracker in trackers)
-    magnet_link = f"magnet:?xt=urn:btih:{infohash}&{trackers_query}"
-    print(f"[DEBUG] Generated Magnet Link: {magnet_link}")
-    return magnet_link
 
 # Helper function to sanitize titles
 def sanitize_title(title):

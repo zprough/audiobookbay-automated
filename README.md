@@ -101,6 +101,10 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
     DL_CATEGORY=abb-downloader
     SAVE_PATH_BASE=/audiobooks
     
+    # AudiobookBar Hostname
+    ABB_HOSTNAME='audiobookbay.is' #Default
+    # ABB_HOSTNAME='audiobookbay.lu' #Alternative
+
     # Optional Navigation Bar Entry
     NAV_LINK_NAME=Open Audiobook Player
     NAV_LINK_URL=https://audiobooks.yourdomain.com/
