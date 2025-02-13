@@ -3,6 +3,7 @@ from flask import Flask, request, render_template, jsonify
 from bs4 import BeautifulSoup
 from qbittorrentapi import Client
 from transmission_rpc import Client as transmissionrpc
+from deluge_web_client import DelugeWebClient as delugewebclient
 from dotenv import load_dotenv
 app = Flask(__name__)
 
