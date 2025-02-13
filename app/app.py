@@ -4,22 +4,49 @@ from bs4 import BeautifulSoup
 from qbittorrentapi import Client
 from transmission_rpc import Client as transmissionrpc
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 app = Flask(__name__)
 
 #Load environment variables
 load_dotenv()
+
 ABB_HOSTNAME = os.getenv("ABB_HOSTNAME", "audiobookbay.lu")
-DOWNLOAD_CLIENT=os.getenv("DOWNLOAD_CLIENT")
-DL_HOST = os.getenv("DL_HOST")
-DL_PORT = os.getenv("DL_PORT")
+DOWNLOAD_CLIENT = os.getenv("DOWNLOAD_CLIENT")
+DL_URL = os.getenv("DL_URL")
+if DL_URL:
+    parsed_url = urlparse(DL_URL)
+    DL_SCHEME = parsed_url.scheme
+    DL_HOST = parsed_url.hostname
+    DL_PORT = parsed_url.port
+else:
+    DL_SCHEME = os.getenv("DL_SCHEME", "http")
+    DL_HOST = os.getenv("DL_HOST")
+    DL_PORT = os.getenv("DL_PORT")
+
+    # Make a DL_URL for Deluge if one was not specified
+    if DL_HOST and DL_PORT:
+        DL_URL = f"{DL_SCHEME}://{DL_HOST}:{DL_PORT}"
+
 DL_USERNAME = os.getenv("DL_USERNAME")
 DL_PASSWORD = os.getenv("DL_PASSWORD")
-DL_CATEGORY = os.getenv("DL_CATEGORY")
+DL_CATEGORY = os.getenv("DL_CATEGORY", "Audiobookbay-Audiobooks")
 SAVE_PATH_BASE = os.getenv("SAVE_PATH_BASE")
 
 # Custom Nav Link Variables
 NAV_LINK_NAME = os.getenv("NAV_LINK_NAME")
 NAV_LINK_URL = os.getenv("NAV_LINK_URL")
+
+#Print configuration
+print(f"ABB_HOSTNAME: {ABB_HOSTNAME}")
+print(f"DOWNLOAD_CLIENT: {DOWNLOAD_CLIENT}")
+print(f"DL_HOST: {DL_HOST}")
+print(f"DL_PORT: {DL_PORT}")
+print(f"DL_URL: {DL_URL}")
+print(f"DL_USERNAME: {DL_USERNAME}")
+print(f"DL_CATEGORY: {DL_CATEGORY}")
+print(f"SAVE_PATH_BASE: {SAVE_PATH_BASE}")
+print(f"NAV_LINK_NAME: {NAV_LINK_NAME}")
+print(f"NAV_LINK_URL: {NAV_LINK_URL}")
 
 
 @app.context_processor
@@ -140,7 +167,7 @@ def send():
             qb.auth_log_in()
             qb.torrents_add(urls=magnet_link, save_path=save_path, category=DL_CATEGORY)
         elif DOWNLOAD_CLIENT == 'transmission':
-            transmission = transmissionrpc(host=DL_HOST, port=DL_PORT, username=DL_USERNAME, password=DL_PASSWORD)
+            transmission = transmissionrpc(host=DL_HOST, port=DL_PORT, protocol=DL_SCHEME, username=DL_USERNAME, password=DL_PASSWORD)
             transmission.add_torrent(magnet_link, download_dir=save_path)
         else:
             return jsonify({'message': 'Unsupported download client'}), 400
