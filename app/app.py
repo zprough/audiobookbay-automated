@@ -3,6 +3,7 @@ from flask import Flask, request, render_template, jsonify
 from bs4 import BeautifulSoup
 from qbittorrentapi import Client
 from transmission_rpc import Client as transmissionrpc
+from deluge_web_client import DelugeWebClient as delugewebclient
 from dotenv import load_dotenv
 from urllib.parse import urlparse
 app = Flask(__name__)
@@ -11,6 +12,7 @@ app = Flask(__name__)
 load_dotenv()
 
 ABB_HOSTNAME = os.getenv("ABB_HOSTNAME", "audiobookbay.lu")
+
 DOWNLOAD_CLIENT = os.getenv("DOWNLOAD_CLIENT")
 DL_URL = os.getenv("DL_URL")
 if DL_URL:
@@ -169,6 +171,10 @@ def send():
         elif DOWNLOAD_CLIENT == 'transmission':
             transmission = transmissionrpc(host=DL_HOST, port=DL_PORT, protocol=DL_SCHEME, username=DL_USERNAME, password=DL_PASSWORD)
             transmission.add_torrent(magnet_link, download_dir=save_path)
+        elif DOWNLOAD_CLIENT == "delugeweb":
+            delugeweb = delugewebclient(url=DL_URL, password=DL_PASSWORD)
+            delugeweb.login()
+            delugeweb.add_torrent_magnet(magnet_link, save_directory=save_path, label=DL_CATEGORY)
         else:
             return jsonify({'message': 'Unsupported download client'}), 400
 
@@ -203,6 +209,22 @@ def status():
                     'size': f"{torrent.total_size / (1024 * 1024):.2f} MB"
                 }
                 for torrent in torrents
+            ]
+        elif DOWNLOAD_CLIENT == "delugeweb":
+            delugeweb = delugewebclient(url=DL_URL, password=DL_PASSWORD)
+            delugeweb.login()
+            torrents = delugeweb.get_torrents_status(
+                filter_dict={"label": DL_CATEGORY},
+                keys=["name", "state", "progress", "total_size"],
+            )
+            torrent_list = [
+                {
+                    "name": torrent["name"],
+                    "progress": round(torrent["progress"], 2),
+                    "state": torrent["state"],
+                    "size": f"{torrent['total_size'] / (1024 * 1024):.2f} MB",
+                }
+                for k, torrent in torrents.result.items()
             ]
         else:
             return jsonify({'message': 'Unsupported download client'}), 400
