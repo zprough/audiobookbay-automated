@@ -3,23 +3,52 @@ from flask import Flask, request, render_template, jsonify
 from bs4 import BeautifulSoup
 from qbittorrentapi import Client
 from transmission_rpc import Client as transmissionrpc
+from deluge_web_client import DelugeWebClient as delugewebclient
 from dotenv import load_dotenv
+from urllib.parse import urlparse
 app = Flask(__name__)
 
 #Load environment variables
 load_dotenv()
+
 ABB_HOSTNAME = os.getenv("ABB_HOSTNAME", "audiobookbay.lu")
-DOWNLOAD_CLIENT=os.getenv("DOWNLOAD_CLIENT")
-DL_HOST = os.getenv("DL_HOST")
-DL_PORT = os.getenv("DL_PORT")
+
+DOWNLOAD_CLIENT = os.getenv("DOWNLOAD_CLIENT")
+DL_URL = os.getenv("DL_URL")
+if DL_URL:
+    parsed_url = urlparse(DL_URL)
+    DL_SCHEME = parsed_url.scheme
+    DL_HOST = parsed_url.hostname
+    DL_PORT = parsed_url.port
+else:
+    DL_SCHEME = os.getenv("DL_SCHEME", "http")
+    DL_HOST = os.getenv("DL_HOST")
+    DL_PORT = os.getenv("DL_PORT")
+
+    # Make a DL_URL for Deluge if one was not specified
+    if DL_HOST and DL_PORT:
+        DL_URL = f"{DL_SCHEME}://{DL_HOST}:{DL_PORT}"
+
 DL_USERNAME = os.getenv("DL_USERNAME")
 DL_PASSWORD = os.getenv("DL_PASSWORD")
-DL_CATEGORY = os.getenv("DL_CATEGORY")
+DL_CATEGORY = os.getenv("DL_CATEGORY", "Audiobookbay-Audiobooks")
 SAVE_PATH_BASE = os.getenv("SAVE_PATH_BASE")
 
 # Custom Nav Link Variables
 NAV_LINK_NAME = os.getenv("NAV_LINK_NAME")
 NAV_LINK_URL = os.getenv("NAV_LINK_URL")
+
+#Print configuration
+print(f"ABB_HOSTNAME: {ABB_HOSTNAME}")
+print(f"DOWNLOAD_CLIENT: {DOWNLOAD_CLIENT}")
+print(f"DL_HOST: {DL_HOST}")
+print(f"DL_PORT: {DL_PORT}")
+print(f"DL_URL: {DL_URL}")
+print(f"DL_USERNAME: {DL_USERNAME}")
+print(f"DL_CATEGORY: {DL_CATEGORY}")
+print(f"SAVE_PATH_BASE: {SAVE_PATH_BASE}")
+print(f"NAV_LINK_NAME: {NAV_LINK_NAME}")
+print(f"NAV_LINK_URL: {NAV_LINK_URL}")
 
 
 @app.context_processor
@@ -140,8 +169,12 @@ def send():
             qb.auth_log_in()
             qb.torrents_add(urls=magnet_link, save_path=save_path, category=DL_CATEGORY)
         elif DOWNLOAD_CLIENT == 'transmission':
-            transmission = transmissionrpc(host=DL_HOST, port=DL_PORT, username=DL_USERNAME, password=DL_PASSWORD)
+            transmission = transmissionrpc(host=DL_HOST, port=DL_PORT, protocol=DL_SCHEME, username=DL_USERNAME, password=DL_PASSWORD)
             transmission.add_torrent(magnet_link, download_dir=save_path)
+        elif DOWNLOAD_CLIENT == "delugeweb":
+            delugeweb = delugewebclient(url=DL_URL, password=DL_PASSWORD)
+            delugeweb.login()
+            delugeweb.add_torrent_magnet(magnet_link, save_directory=save_path, label=DL_CATEGORY)
         else:
             return jsonify({'message': 'Unsupported download client'}), 400
 
@@ -176,6 +209,22 @@ def status():
                     'size': f"{torrent.total_size / (1024 * 1024):.2f} MB"
                 }
                 for torrent in torrents
+            ]
+        elif DOWNLOAD_CLIENT == "delugeweb":
+            delugeweb = delugewebclient(url=DL_URL, password=DL_PASSWORD)
+            delugeweb.login()
+            torrents = delugeweb.get_torrents_status(
+                filter_dict={"label": DL_CATEGORY},
+                keys=["name", "state", "progress", "total_size"],
+            )
+            torrent_list = [
+                {
+                    "name": torrent["name"],
+                    "progress": round(torrent["progress"], 2),
+                    "state": torrent["state"],
+                    "size": f"{torrent['total_size'] / (1024 * 1024):.2f} MB",
+                }
+                for k, torrent in torrents.result.items()
             ]
         else:
             return jsonify({'message': 'Unsupported download client'}), 400
