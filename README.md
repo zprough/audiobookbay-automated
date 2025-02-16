@@ -1,7 +1,7 @@
 
 # AudiobookBay Automated
 
-AudiobookBay Automated is a lightweight web application designed to simplify audiobook management. It allows users to search [**AudioBook Bay**](https://audiobookbay.lu/) for audiobooks and send magnet links directly to a designated **qBittorrent or Transmission** client.
+AudiobookBay Automated is a lightweight web application designed to simplify audiobook management. It allows users to search [**AudioBook Bay**](https://audiobookbay.lu/) for audiobooks and send magnet links directly to a designated **Deludge, qBittorrent or Transmission** client.
 
 ## How It Works
 - **Search Results**: Users search for audiobooks. The app grabs results from AudioBook Bay and displays results with the **title** and **cover image**, along with two action links:
@@ -33,13 +33,14 @@ AudiobookBay Downloader provides a simple and user-friendly interface for users 
 ## Installation
 
 ### Prerequisites
-- **qBittorrent or Transmission** (with the WebUI enabled)
+- **Deludge, qBittorrent or Transmission** (with the WebUI enabled)
 - **Docker** (optional, for containerized deployments)
 
 ### Environment Variables
 The app uses environment variables to configure its behavior. Below are the required variables:
 
 ```env
+DL_SCHEME=http
 DL_HOST=192.168.xxx.xxx        # IP or hostname of your qBittorrent or Transmission instance
 DL_PORT=8080                   # torrent WebUI port
 DL_USERNAME=YOUR_USER          # torrent username
@@ -70,6 +71,7 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
        container_name: audiobookbay-downloader
        environment:
          - DOWNLOAD_CLIENT=qbittorrent
+         - DL_SCHEME=http
          - DL_HOST=192.168.1.123
          - DL_PORT=8080
          - DL_USERNAME=admin
@@ -95,7 +97,8 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
 2. Create a .env file in the project directory to configure your application. Below is an  example of the required variables:
     ```
     # Torrent Client Configuration
-    DOWNLOAD_CLIENT=transmission # Change to transmission or qbittorrent
+    DOWNLOAD_CLIENT=transmission # Change to deludge, transmission or qbittorrent
+    DL_SCHEME=http
     DL_HOST=192.168.1.123
     DL_PORT=8080
     DL_USERNAME=admin
