@@ -13,13 +13,27 @@
 </div>
 <form method="post" class="search-container" onsubmit="showLoadingSpinner()">
     <input type="text" name="query" placeholder="Enter book name" class="search-bar" required>
-    <button type="submit" class="search-button">Search</button>
+<button type="submit" class="search-button">
+    <span class="button-text">Search</span>
+    <div class="button-spinner" id="button-spinner" style="display: none;">
+        <div class="spinner"></div>
+    </div>
+</button>
 </form>
+
+<div class="message-scroller" id="message-scroller">
+    <p id="scrolling-message"></p>
+</div>
 
 <div class="loading-spinner" id="loading-spinner">
     <div class="spinner"></div>
     <p>Searching...</p>
 </div>
+
+{% if error %}
+  <p class="error-message">{{ error }}</p>
+{% endif %}
+
 
 <table>
     <tbody>
@@ -38,8 +52,66 @@
 
 <script>
     function showLoadingSpinner() {
-        const spinner = document.getElementById('loading-spinner');
-        spinner.style.display = 'flex';
+        const buttonSpinner = document.getElementById('button-spinner');
+        buttonSpinner.style.display = 'inline-block';
+        setTimeout(showScrollingMessages, 5000);
+    }
+
+    function hideLoadingSpinner() {
+        const buttonSpinner = document.getElementById('button-spinner');
+        const buttonText = document.querySelector('.button-text');
+        buttonSpinner.style.display = 'none';
+        hideScrollingMessages();
+    }
+
+    const messages = [
+        "Searching... This better be worth it!",
+        "Hold on, this takes a while...",
+        "Still searching... Maybe grab a snack?",
+        "Patience, young grasshopper...",
+        "Wow, this is taking a minute!",
+        "Don’t worry, I got this!",
+        "Maybe go for a walk?",
+        "Still thinking... Almost there!",
+        "Finding the best results for you!",
+        "Hang tight! Searching magic happening!",
+        "One moment... while I consult the ancients.",
+        "Beep boop... processing... please wait...",
+        "My hamsters are running on a wheel, almost there!",
+        "Just gathering some pixie dust, be right back!",
+        "Is it lunchtime yet? Oh, searching... right.",
+        "Please remain calm, the search is in progress.",
+        "Warning: Search may cause extreme awesomeness.",
+        "Calculating the optimal route to your results...",
+        "Almost there... just defragmenting my brain.",
+        "Searching... because the internet is a big place!",
+        "Polishing the search results for your viewing pleasure.",
+        "The search is strong with this one.",
+        "Please wait while I summon the search demons.",
+        "Searching in hyperspace... almost there!",
+        "My coffee is kicking in... search commencing!",
+        "Just a few more gigabytes to process...",
+        "Rome wasn't built in a day.",
+        "Don't blame me, the internet is slow today.",
+        "Almost there... just need to find the right key...",
+    ];
+    let messageIndex = 0;
+
+    function showScrollingMessages() {
+        const messageScroller = document.getElementById('message-scroller');
+        const scrollingMessage = document.getElementById('scrolling-message');
+        const shuffledMessages = messages.sort(() => Math.random() - 0.5);
+        messageScroller.style.display = 'block';
+        scrollingMessage.textContent = shuffledMessages[messageIndex];
+        setInterval(() => {
+            messageIndex = (messageIndex + 1) % messages.length;
+            scrollingMessage.textContent = shuffledMessages[messageIndex];
+        }, 5000);
+    }
+
+    function hideScrollingMessages() {
+        const messageScroller = document.getElementById('message-scroller');
+        messageScroller.style.display = 'none';
     }
 
     function sendToQB(link, title) {
@@ -48,7 +120,10 @@
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ link: link, title: title })
         }).then(response => response.json())
-          .then(data => alert(data.message));
+        .then(data => {
+          alert(data.message)
+          hideLoadingSpinner();
+        });
     }
 </script>
 
