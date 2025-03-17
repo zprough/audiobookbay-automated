@@ -37,5 +37,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/jamesry96/audiobookbay-automated:latest
+            ghcr.io/${{ github.repository }}:latest
           platforms: linux/amd64,linux/arm64
