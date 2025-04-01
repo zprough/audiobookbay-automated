@@ -139,13 +139,19 @@ def sanitize_title(title):
 @app.route('/', methods=['GET', 'POST'])
 def search():
     books = []
-    if request.method == 'POST':  # Form submitted
-        query = request.form['query']
-        #Convert to all lowercase
-        query = query.lower()
-        if query:  # Only search if the query is not empty
-            books = search_audiobookbay(query)
-    return render_template('search.html', books=books)
+    try:
+        if request.method == 'POST':  # Form submitted
+            query = request.form['query']
+            #Convert to all lowercase
+            query = query.lower()
+            if query:  # Only search if the query is not empty
+                books = search_audiobookbay(query)
+        return render_template('search.html', books=books)
+    except Exception as e:
+        print(f"[ERROR] Failed to search: {e}")
+        return render_template('search.html', books=books, error=f"Failed to search. { str(e) }")
+
+
 
 
 # Endpoint to send magnet link to qBittorrent
