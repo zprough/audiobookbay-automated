@@ -13,6 +13,8 @@ load_dotenv()
 
 ABB_HOSTNAME = os.getenv("ABB_HOSTNAME", "audiobookbay.lu")
 
+PAGE_LIMIT = int(os.getenv("PAGE_LIMIT", 5))
+
 DOWNLOAD_CLIENT = os.getenv("DOWNLOAD_CLIENT")
 DL_URL = os.getenv("DL_URL")
 if DL_URL:
@@ -49,6 +51,7 @@ print(f"DL_CATEGORY: {DL_CATEGORY}")
 print(f"SAVE_PATH_BASE: {SAVE_PATH_BASE}")
 print(f"NAV_LINK_NAME: {NAV_LINK_NAME}")
 print(f"NAV_LINK_URL: {NAV_LINK_URL}")
+print(f"PAGE_LIMIT: {PAGE_LIMIT}")
 
 
 @app.context_processor
@@ -61,7 +64,7 @@ def inject_nav_link():
 
 
 # Helper function to search AudiobookBay
-def search_audiobookbay(query, max_pages=5):
+def search_audiobookbay(query, max_pages=PAGE_LIMIT):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
     }

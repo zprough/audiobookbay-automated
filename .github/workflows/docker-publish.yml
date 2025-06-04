@@ -1,5 +1,5 @@
 name: Build and Push Multi-Architecture Image
-
+#Publish GHCR
 on:
   push:
     branches:
