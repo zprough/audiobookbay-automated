@@ -1,0 +1,31 @@
+version: '3.8'
+
+services:
+  audiobookbay-automated-dev:
+    # Build from local Dockerfile instead of pulling from registry
+    build: .
+    ports:
+      - "5078:5078"
+    container_name: audiobookbay-automated-dev
+    environment:
+      - FLASK_DEBUG=true
+      - DOWNLOAD_CLIENT=${DOWNLOAD_CLIENT}
+      - DL_HOST=${DL_HOST}
+      - DL_PORT=${DL_PORT}
+      - DL_USERNAME=${DL_USERNAME}
+      - DL_PASSWORD=${DL_PASSWORD}
+      - DL_CATEGORY=${DL_CATEGORY}
+      - SAVE_PATH_BASE=${SAVE_PATH_BASE}
+      - NAV_LINK_NAME=${NAV_LINK_NAME}
+      - NAV_LINK_URL=${NAV_LINK_URL}
+      - ABB_HOSTNAME=${ABB_HOSTNAME}
+      - PAGE_LIMIT=${PAGE_LIMIT}
+    volumes:
+      # Mount local files for live editing
+      - ./app/templates:/app/templates
+      - ./app/static:/app/static
+      - ./app/app.py:/app/app.py
+    env_file:
+      - .env
+    # Restart the container when files change (optional)
+    restart: unless-stopped
