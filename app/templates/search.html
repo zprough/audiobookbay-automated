@@ -34,19 +34,32 @@
   <p class="error-message">{{ error }}</p>
 {% endif %}
 
+<!-- Filter Controls -->
+{% if books %}
+<div class="filter-container">
+    <h3>Filters</h3>
+    <div class="filter-controls">
+        <label class="filter-label">
+            <input type="checkbox" id="englishFilter" onchange="applyFilters()">
+            English Only
+        </label>
+        <label class="filter-label">
+            <input type="checkbox" id="fullCastInclude" onchange="applyFilters()">
+            Include Full Cast
+        </label>
+        <label class="filter-label">
+            <input type="checkbox" id="fullCastExclude" onchange="applyFilters()">
+            Exclude Full Cast
+        </label>
+        <button type="button" id="clearFilters" onclick="clearAllFilters()">Clear Filters</button>
+    </div>
+    <div id="filterStatus" class="filter-status"></div>
+</div>
+{% endif %}
 
-<table>
+<table id="resultsTable">
     <tbody>
-        {% for book in books %}
-        <tr>
-            <td><img src="{{ book.cover }}" alt="Cover Art" class="cover" width="100"></td>
-            <td>{{ book.title }}</td>
-            <td> 
-                <button onclick="window.open('{{ book.link }}', '_blank')">Details</button>
-                <button onclick="sendToQB('{{ book.link|escape }}', '{{ book.title|escape }}')">Download to Server</button>
-            </td>
-        </tr>
-        {% endfor %}
+        <!-- Results will be populated by JavaScript -->
     </tbody>
 </table>
 
@@ -125,6 +138,113 @@
           hideLoadingSpinner();
         });
     }
+
+    // Store all books data for filtering
+    let allBooks = [
+        {% for book in books %}
+        {
+            title: "{{ book.title|e }}",
+            cover: "{{ book.cover|e }}",
+            link: "{{ book.link|e }}",
+            language: "{{ book.language|e if book.language else '' }}",
+            format: "{{ book.format|e if book.format else '' }}",
+            categories: {{ book.categories|tojson if book.categories else '[]' }},
+            keywords: {{ book.keywords|tojson if book.keywords else '[]' }}
+        }{% if not loop.last %},{% endif %}
+        {% endfor %}
+    ];
+
+    function applyFilters() {
+        const englishFilter = document.getElementById('englishFilter').checked;
+        const fullCastInclude = document.getElementById('fullCastInclude').checked;
+        const fullCastExclude = document.getElementById('fullCastExclude').checked;
+        
+        // Prevent conflicting filters
+        if (fullCastInclude && fullCastExclude) {
+            if (event.target.id === 'fullCastInclude') {
+                document.getElementById('fullCastExclude').checked = false;
+            } else {
+                document.getElementById('fullCastInclude').checked = false;
+            }
+        }
+
+        let filteredBooks = allBooks.filter(book => {
+            // English filter
+            if (englishFilter && book.language.toLowerCase() !== 'english') {
+                return false;
+            }
+
+            // Full Cast filters
+            const hasFullCast = book.categories.some(cat => 
+                cat.toLowerCase().includes('full cast')
+            );
+            
+            if (fullCastInclude && !hasFullCast) {
+                return false;
+            }
+            
+            if (fullCastExclude && hasFullCast) {
+                return false;
+            }
+
+            return true;
+        });
+
+        // Update the table with filtered results
+        updateResultsTable(filteredBooks);
+        updateFilterStatus(filteredBooks.length, allBooks.length);
+    }
+
+    function updateResultsTable(books) {
+        const tbody = document.querySelector('#resultsTable tbody');
+        tbody.innerHTML = '';
+
+        books.forEach(book => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td><img src="${book.cover}" alt="Cover Art" class="cover" width="100"></td>
+                <td>
+                    <div class="book-title">${book.title}</div>
+                    <div class="book-metadata">
+                        ${book.language ? `<div class="book-meta"><strong>Language:</strong> ${book.language}</div>` : ''}
+                        ${book.format ? `<div class="book-meta"><strong>Format:</strong> ${book.format}</div>` : ''}
+                        ${book.categories.length > 0 ? `<div class="book-meta"><strong>Categories:</strong> ${book.categories.join(', ')}</div>` : ''}
+                        ${book.keywords.length > 0 ? `<div class="book-meta"><strong>Keywords:</strong> ${book.keywords.join(', ')}</div>` : ''}
+                    </div>
+                </td>
+                <td>
+                    <button onclick="window.open('${book.link}', '_blank')">Details</button>
+                    <button onclick="sendToQB('${book.link.replace(/'/g, "\\'")}', '${book.title.replace(/'/g, "\\'")}')">Download to Server</button>
+                </td>
+            `;
+            tbody.appendChild(row);
+        });
+    }
+
+    function updateFilterStatus(filteredCount, totalCount) {
+        const statusDiv = document.getElementById('filterStatus');
+        if (filteredCount === totalCount) {
+            statusDiv.textContent = `Showing all ${totalCount} results`;
+        } else {
+            statusDiv.textContent = `Showing ${filteredCount} of ${totalCount} results`;
+        }
+    }
+
+    function clearAllFilters() {
+        document.getElementById('englishFilter').checked = false;
+        document.getElementById('fullCastInclude').checked = false;
+        document.getElementById('fullCastExclude').checked = false;
+        updateResultsTable(allBooks);
+        updateFilterStatus(allBooks.length, allBooks.length);
+    }
+
+    // Initialize the table with all results on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        if (allBooks.length > 0) {
+            updateResultsTable(allBooks);
+            updateFilterStatus(allBooks.length, allBooks.length);
+        }
+    });
 </script>
 
 {% endblock %}

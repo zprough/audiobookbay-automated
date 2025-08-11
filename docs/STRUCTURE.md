@@ -97,4 +97,25 @@ With this organized structure in place, future enhancements become much easier:
 - Adding comprehensive test suites
 - Implementing proper logging configuration
 
-The refactoring maintains full backward compatibility while providing a solid foundation for future development.
+### Environment Variable Handling
+
+The application properly handles environment variables in both local development and containerized environments:
+
+#### **Local Development**
+- Uses `.env` file in project root for configuration
+- `load_dotenv(override=False)` ensures existing environment variables take precedence
+- Settings page writes changes to project `.env` file
+
+#### **Container/Docker Mode**
+- Docker Compose environment variables take highest precedence
+- Settings page detects container mode (`/.dockerenv` file or `CONTAINER=docker`)
+- Attempts to write settings to `/config/.env` (mounted volume)
+- Falls back to app directory if no writable config volume available
+- Shows warnings about Docker Compose overrides and persistence
+
+#### **Environment Variable Precedence**
+1. **Docker Compose environment variables** (highest priority)
+2. **System environment variables**
+3. **`.env` file settings** (lowest priority)
+
+This ensures that Docker deployments work correctly while maintaining flexibility for local development.

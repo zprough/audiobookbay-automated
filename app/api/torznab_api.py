@@ -14,7 +14,7 @@ import requests
 from urllib.parse import quote
 
 # Import our custom modules
-from scraper import search_audiobookbay, extract_magnet_link
+from scraper.audiobookbay_scraper import search_audiobookbay, extract_magnet_link
 
 # Create Blueprint for Torznab API
 torznab_bp = Blueprint('torznab', __name__, url_prefix='/torznab')

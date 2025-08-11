@@ -5,15 +5,18 @@ Searches AudiobookBay for audiobooks and adds them to torrent clients.
 
 import os
 from typing import Dict, Optional
-from flask import Flask, request, render_template, jsonify
+from flask import Flask, request, render_template, jsonify, redirect, url_for, flash
 from dotenv import load_dotenv
 
 # Import our custom modules
-from api import torznab_bp
-from scraper import search_audiobookbay, extract_magnet_link, get_scraper_stats
-from clients import add_torrent, get_torrents, get_client_info, DownloadClientError
+from api.torznab_api import torznab_bp
+from scraper.audiobookbay_scraper import search_audiobookbay, extract_magnet_link, get_scraper_stats
+from clients.download_client import add_torrent, get_torrents, get_client_info, DownloadClientError
 
 app = Flask(__name__)
+
+# Configure Flask app
+app.secret_key = os.getenv('SECRET_KEY', 'audiobookbay-automated-secret-key-change-in-production')
 
 # Register Torznab Blueprint
 app.register_blueprint(torznab_bp)
@@ -22,8 +25,9 @@ app.register_blueprint(torznab_bp)
 # CONFIGURATION AND ENVIRONMENT VARIABLES
 # =============================================================================
 
-# Load environment variables from .env file
-load_dotenv()
+# Load environment variables from .env file (only if running locally)
+# In containers, Docker Compose environment variables take precedence
+load_dotenv(override=False)  # Don't override existing environment variables
 
 # Custom Navigation Link Configuration (only used by Flask app)
 NAV_LINK_NAME: Optional[str] = os.getenv("NAV_LINK_NAME")
@@ -180,6 +184,169 @@ def status():
         print(f"[FLASK] Status error: {e}")
         error_message = f"Failed to fetch torrent status: {str(e)}"
         return render_template('status.html', torrents=[], error=error_message)
+
+@app.route('/settings', methods=['GET', 'POST'])
+def settings():
+    """
+    Environment settings page route.
+    
+    GET: Display the settings form with current values
+    POST: Save updated environment variables to .env file
+    
+    Returns:
+        Rendered settings.html template with current settings or success/error messages
+    """
+    # Detect if running in container
+    is_container = os.path.exists('/.dockerenv') or os.getenv('CONTAINER') == 'docker'
+    
+    if request.method == 'POST':
+        try:
+            # Get all form data
+            settings_data = {}
+            
+            # Define all possible environment variables
+            env_vars = [
+                'ABB_HOSTNAME', 'PAGE_LIMIT', 'DOWNLOAD_CLIENT', 'DL_HOST', 'DL_PORT',
+                'DL_USERNAME', 'DL_PASSWORD', 'DL_CATEGORY', 'SAVE_PATH_BASE',
+                'NAV_LINK_NAME', 'NAV_LINK_URL', 'TORZNAB_API_KEY', 'TORZNAB_TITLE',
+                'TORZNAB_DESCRIPTION', 'FLASK_DEBUG', 'DEV_PORT'
+            ]
+            
+            # Collect form data
+            for var in env_vars:
+                value = request.form.get(var, '').strip()
+                if value:  # Only save non-empty values
+                    settings_data[var] = value
+            
+            # Write to .env file
+            success = _write_env_file(settings_data)
+            
+            if success:
+                print("[FLASK] Environment settings updated successfully")
+                success_msg = "Settings saved successfully!"
+                if is_container:
+                    success_msg += " Note: Running in container mode - some changes may require container restart and Docker Compose environment variables will override these settings."
+                    
+                return render_template('settings.html', 
+                                     settings=_get_current_settings(),
+                                     success_message=success_msg,
+                                     is_container=is_container)
+            else:
+                return render_template('settings.html', 
+                                     settings=_get_current_settings(),
+                                     error_message="Failed to save settings. Please check file permissions.",
+                                     is_container=is_container)
+                                     
+        except Exception as e:
+            print(f"[FLASK] Settings save error: {e}")
+            return render_template('settings.html', 
+                                 settings=_get_current_settings(),
+                                 error_message=f"Error saving settings: {str(e)}",
+                                 is_container=is_container)
+    
+    # GET request - display current settings
+    return render_template('settings.html', 
+                         settings=_get_current_settings(), 
+                         is_container=is_container)
+
+def _get_current_settings() -> Dict[str, Optional[str]]:
+    """
+    Get current environment variable values.
+    
+    Returns:
+        Dict[str, Optional[str]]: Dictionary of current environment settings
+    """
+    return {
+        'ABB_HOSTNAME': os.getenv('ABB_HOSTNAME'),
+        'PAGE_LIMIT': os.getenv('PAGE_LIMIT'),
+        'DOWNLOAD_CLIENT': os.getenv('DOWNLOAD_CLIENT'),
+        'DL_HOST': os.getenv('DL_HOST'),
+        'DL_PORT': os.getenv('DL_PORT'),
+        'DL_USERNAME': os.getenv('DL_USERNAME'),
+        'DL_PASSWORD': os.getenv('DL_PASSWORD'),
+        'DL_CATEGORY': os.getenv('DL_CATEGORY'),
+        'SAVE_PATH_BASE': os.getenv('SAVE_PATH_BASE'),
+        'NAV_LINK_NAME': os.getenv('NAV_LINK_NAME'),
+        'NAV_LINK_URL': os.getenv('NAV_LINK_URL'),
+        'TORZNAB_API_KEY': os.getenv('TORZNAB_API_KEY'),
+        'TORZNAB_TITLE': os.getenv('TORZNAB_TITLE'),
+        'TORZNAB_DESCRIPTION': os.getenv('TORZNAB_DESCRIPTION'),
+        'FLASK_DEBUG': os.getenv('FLASK_DEBUG'),
+        'DEV_PORT': os.getenv('DEV_PORT'),
+    }
+
+def _write_env_file(settings: Dict[str, str]) -> bool:
+    """
+    Write environment variables to .env file.
+    
+    Args:
+        settings (Dict[str, str]): Settings to write
+        
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    try:
+        # Detect if running in container
+        is_container = os.path.exists('/.dockerenv') or os.getenv('CONTAINER') == 'docker'
+        
+        if is_container:
+            # In container: try to write to mounted config volume
+            config_dir = '/config'
+            if os.path.exists(config_dir) and os.access(config_dir, os.W_OK):
+                env_file_path = os.path.join(config_dir, '.env')
+                print(f"[FLASK] Container mode: writing to {env_file_path}")
+            else:
+                # Fallback: write to app directory (will be lost on restart)
+                env_file_path = os.path.join(os.path.dirname(__file__), '.env')
+                print(f"[FLASK] Container mode: no writable config volume, using {env_file_path} (changes will be lost on restart)")
+        else:
+            # Local development: write to project root
+            env_file_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+            print(f"[FLASK] Local mode: writing to {env_file_path}")
+        
+        # Read existing .env file if it exists
+        existing_settings = {}
+        if os.path.exists(env_file_path):
+            with open(env_file_path, 'r') as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith('#') and '=' in line:
+                        key, value = line.split('=', 1)
+                        existing_settings[key.strip()] = value.strip()
+        
+        # Update with new settings
+        existing_settings.update(settings)
+        
+        # Write back to file
+        with open(env_file_path, 'w') as f:
+            f.write("# AudiobookBay Automated Configuration\n")
+            f.write("# Generated by web interface\n")
+            if is_container:
+                f.write("# Running in container mode\n")
+                f.write("# Note: Docker Compose environment variables will override these settings\n")
+            f.write("\n")
+            
+            # Group settings by category
+            categories = {
+                'AudiobookBay Settings': ['ABB_HOSTNAME', 'PAGE_LIMIT'],
+                'Download Client Settings': ['DOWNLOAD_CLIENT', 'DL_HOST', 'DL_PORT', 
+                                           'DL_USERNAME', 'DL_PASSWORD', 'DL_CATEGORY', 'SAVE_PATH_BASE'],
+                'Navigation Settings': ['NAV_LINK_NAME', 'NAV_LINK_URL'],
+                'Torznab API Settings': ['TORZNAB_API_KEY', 'TORZNAB_TITLE', 'TORZNAB_DESCRIPTION'],
+                'Development Settings': ['FLASK_DEBUG', 'DEV_PORT']
+            }
+            
+            for category, vars_list in categories.items():
+                f.write(f"\n# {category}\n")
+                for var in vars_list:
+                    if var in existing_settings:
+                        f.write(f"{var}={existing_settings[var]}\n")
+        
+        return True
+        
+    except Exception as e:
+        print(f"[FLASK] Error writing .env file: {e}")
+        return False
 
 # =============================================================================
 # APPLICATION STARTUP

@@ -115,29 +115,27 @@ def _extract_posts_from_page(soup: BeautifulSoup) -> List[Dict[str, str]]:
     
     # Find all divs with class "post"
     post_divs = soup.select('div.post')
-    
-    decoded_posts = []
-    
-    # First pass: decode base64 encoded posts if needed
+
+    posts = []
+
     for i, div in enumerate(post_divs):
         try:
             # If post has class re-ab then decode it
             if 're-ab' in div.get('class', []):
                 base64_encoded_text = div.text.strip()
                 decoded_bytes = base64.b64decode(base64_encoded_text)
-                decoded_html = decoded_bytes.decode('utf-8', errors='replace')
-                decoded_posts.append(decoded_html)
+                decoded_text = decoded_bytes.decode('utf-8', errors='replace')
+                posts.append(decoded_text)
             else:
-                # Use the original HTML content
-                decoded_posts.append(str(div))
+                posts.append(div.decode_contents())
         except Exception as e:
-            print(f"[SCRAPER] Decoding failed for post {i}: {e}")
-            # Fallback to original content
-            decoded_posts.append(str(div))
+            print(f"Decoding failed {i}: {e}")
     
-    # Second pass: parse the decoded content
-    for i, post_html in enumerate(decoded_posts):
+    for post in post_divs:
         try:
+            # Get the raw HTML content for detailed parsing
+            post_html = str(post)
+            
             # Parse the comprehensive post information
             post_data = _parse_post_details(post_html)
             
@@ -146,7 +144,7 @@ def _extract_posts_from_page(soup: BeautifulSoup) -> List[Dict[str, str]]:
                 results.append(post_data)
             
         except Exception as e:
-            print(f"[SCRAPER] Error extracting post {i}: {e}")
+            print(f"[SCRAPER] Error extracting post: {e}")
             continue
     
     return results
@@ -206,7 +204,13 @@ def _parse_posted_block(block_text: str) -> Tuple[Optional[str], Optional[str], 
 def _parse_post_details(html_snippet: str) -> Dict[str, Any]:
     """
     Parse detailed information from a post HTML snippet.
-    
+    def parse_posts_to_df(html_list):
+    rows = [parse_item(item) for item in html_list]
+    df = pd.DataFrame(rows)
+    if "posted_date" in df and df["posted_date"].notna().any():
+        df["posted_date_sort"] = pd.to_datetime(df["posted_date"], errors="coerce")
+        df = df.sort_values("posted_date_sort", ascending=False).drop(columns=["posted_date_sort"])
+    return df
     Args:
         html_snippet (str): HTML content of the post
         
@@ -224,13 +228,13 @@ def _parse_post_details(html_snippet: str) -> Dict[str, Any]:
     title = a_title.get_text(strip=True) if a_title else None
     
     # Handle href extraction safely
-    post_url = None
-    if a_title and a_title.has_attr("href"):
+    href = None
+    if a_title:
         try:
-            href = a_title["href"]
-            post_url = urljoin(base_url, href) if href else None
+            href = a_title.get("href")  # type: ignore
         except:
             pass
+    post_url = urljoin(base_url, str(href)) if href else None
 
     # Extract categories, language, and keywords from postInfo
     info = soup.select_one(".postInfo")
@@ -261,18 +265,20 @@ def _parse_post_details(html_snippet: str) -> Dict[str, Any]:
 
     # Extract image URL
     img = soup.select_one(".postContent img")
-    image_url = None
-    if img and img.has_attr("src"):
+    image_url = "/static/images/default_cover.jpg"  # default
+    if img:
         try:
-            cover_src = img["src"]
-            if cover_src.startswith('//'):
-                image_url = 'https:' + cover_src
-            elif cover_src.startswith('/'):
-                image_url = urljoin(base_url, cover_src)
-            else:
-                image_url = urljoin(base_url, cover_src)
+            cover_src = img.get("src")  # type: ignore
+            if cover_src:
+                cover_src = str(cover_src)  # ensure string
+                if cover_src.startswith('//'):
+                    image_url = 'https:' + cover_src
+                elif cover_src.startswith('/'):
+                    image_url = urljoin(base_url, cover_src)
+                else:
+                    image_url = cover_src
         except:
-            image_url = None
+            pass  # use default
 
     # Extract posted information block
     posted_block = ""
@@ -304,12 +310,10 @@ def _parse_post_details(html_snippet: str) -> Dict[str, Any]:
     return {
         "title": title,
         "link": post_url,  # Keep 'link' for compatibility
-        "post_url": post_url,  # Match your original field name
-        "cover": image_url or "/static/images/default_cover.jpg",  # Keep 'cover' for compatibility with fallback
-        "image_url": image_url,  # Match your original field name
-        "categories": categories or None,  # Match your original logic
+        "cover": image_url,  # Keep 'cover' for compatibility
+        "categories": categories,
         "language": language,
-        "keywords": keywords or None,  # Match your original logic
+        "keywords": keywords,
         "uploader": uploader,
         "posted_date": posted_date,
         "format": fmt,
@@ -317,6 +321,7 @@ def _parse_post_details(html_snippet: str) -> Dict[str, Any]:
         "file_size_bytes": file_size_bytes,
         "file_size_display": file_size_display,
     }
+
 
 # =============================================================================
 # MAGNET LINK EXTRACTION

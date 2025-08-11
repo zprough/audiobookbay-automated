@@ -1,0 +1,266 @@
+{% extends "base.html" %}
+
+{% block title %}Environment Settings - AudiobookBay Automated{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings.css') }}">
+{% endblock %}
+
+{% block content %}
+<div class="settings-container">
+    <h1>🛠️ Environment Settings</h1>
+    
+    {% if is_container %}
+    <div class="alert alert-warning">
+        🐳 <strong>Container Mode Detected:</strong> You're running in a Docker container. 
+        Settings saved here may be overridden by Docker Compose environment variables and will be lost on container restart unless saved to a mounted volume.
+    </div>
+    {% endif %}
+    
+    {% if success_message %}
+    <div class="alert alert-success">
+        ✅ {{ success_message }}
+    </div>
+    {% endif %}
+    
+    {% if error_message %}
+    <div class="alert alert-error">
+        ❌ {{ error_message }}
+    </div>
+    {% endif %}
+    
+    <form method="POST" class="settings-form">
+        <!-- Essential Settings -->
+        <div class="settings-section">
+            <h2>📚 Essential Settings</h2>
+            <p class="section-description">Core configuration for basic functionality</p>
+            
+            <div class="form-group">
+                <label for="ABB_HOSTNAME">AudiobookBay Hostname</label>
+                <input type="text" id="ABB_HOSTNAME" name="ABB_HOSTNAME" 
+                       value="{{ settings.ABB_HOSTNAME or '' }}" 
+                       placeholder="audiobookbay.lu">
+                <small>The domain name for AudiobookBay (e.g., audiobookbay.lu, audiobookbay.is)</small>
+            </div>
+            
+            <div class="form-group">
+                <label for="DOWNLOAD_CLIENT">Download Client Type</label>
+                <select id="DOWNLOAD_CLIENT" name="DOWNLOAD_CLIENT">
+                    <option value="">-- Select Client --</option>
+                    <option value="qbittorrent" {% if settings.DOWNLOAD_CLIENT == 'qbittorrent' %}selected{% endif %}>qBittorrent</option>
+                    <option value="transmission" {% if settings.DOWNLOAD_CLIENT == 'transmission' %}selected{% endif %}>Transmission</option>
+                    <option value="deluge" {% if settings.DOWNLOAD_CLIENT == 'deluge' %}selected{% endif %}>Deluge</option>
+                </select>
+                <small>Type of torrent client to use for downloads</small>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="DL_HOST">Download Client Host</label>
+                    <input type="text" id="DL_HOST" name="DL_HOST" 
+                           value="{{ settings.DL_HOST or '' }}" 
+                           placeholder="192.168.1.100">
+                    <small>Hostname or IP address</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="DL_PORT">Download Client Port</label>
+                    <input type="number" id="DL_PORT" name="DL_PORT" 
+                           value="{{ settings.DL_PORT or '' }}" 
+                           placeholder="8080" min="1" max="65535">
+                    <small>Port number (1-65535)</small>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="DL_USERNAME">Download Client Username</label>
+                    <input type="text" id="DL_USERNAME" name="DL_USERNAME" 
+                           value="{{ settings.DL_USERNAME or '' }}" 
+                           placeholder="admin">
+                    <small>Username for client authentication</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="DL_PASSWORD">Download Client Password</label>
+                    <input type="password" id="DL_PASSWORD" name="DL_PASSWORD" 
+                           value="{{ settings.DL_PASSWORD or '' }}" 
+                           placeholder="••••••••">
+                    <small>Password for client authentication</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Advanced Settings -->
+        <div class="settings-section">
+            <h2>⚙️ Advanced Settings</h2>
+            <p class="section-description">Fine-tune the application behavior</p>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="PAGE_LIMIT">Search Page Limit</label>
+                    <input type="number" id="PAGE_LIMIT" name="PAGE_LIMIT" 
+                           value="{{ settings.PAGE_LIMIT or 5 }}" 
+                           min="1" max="20" placeholder="5">
+                    <small>Maximum pages to search (1-20)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="DL_CATEGORY">Download Category</label>
+                    <input type="text" id="DL_CATEGORY" name="DL_CATEGORY" 
+                           value="{{ settings.DL_CATEGORY or '' }}" 
+                           placeholder="Audiobookbay-Audiobooks">
+                    <small>Category for organizing downloads</small>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="SAVE_PATH_BASE">Download Save Path</label>
+                <input type="text" id="SAVE_PATH_BASE" name="SAVE_PATH_BASE" 
+                       value="{{ settings.SAVE_PATH_BASE or '' }}" 
+                       placeholder="/downloads/audiobooks">
+                <small>Base directory for saving downloads (absolute path)</small>
+            </div>
+        </div>
+        
+        <!-- Integration Settings -->
+        <div class="settings-section">
+            <h2>🔗 Integration Settings</h2>
+            <p class="section-description">External integrations and API configuration</p>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="NAV_LINK_NAME">Custom Navigation Link Name</label>
+                    <input type="text" id="NAV_LINK_NAME" name="NAV_LINK_NAME" 
+                           value="{{ settings.NAV_LINK_NAME or '' }}" 
+                           placeholder="Audiobookshelf">
+                    <small>Display name for custom navigation link</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="NAV_LINK_URL">Custom Navigation Link URL</label>
+                    <input type="url" id="NAV_LINK_URL" name="NAV_LINK_URL" 
+                           value="{{ settings.NAV_LINK_URL or '' }}" 
+                           placeholder="http://192.168.1.100:13378">
+                    <small>URL for custom navigation link</small>
+                </div>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="TORZNAB_API_KEY">Torznab API Key</label>
+                    <input type="password" id="TORZNAB_API_KEY" name="TORZNAB_API_KEY" 
+                           value="{{ settings.TORZNAB_API_KEY or '' }}" 
+                           placeholder="your-secret-api-key-here">
+                    <small>API key for Torznab authentication</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="TORZNAB_TITLE">Torznab API Title</label>
+                    <input type="text" id="TORZNAB_TITLE" name="TORZNAB_TITLE" 
+                           value="{{ settings.TORZNAB_TITLE or '' }}" 
+                           placeholder="AudiobookBay Automated">
+                    <small>Display title for Torznab API</small>
+                </div>
+            </div>
+            
+            <div class="form-group">
+                <label for="TORZNAB_DESCRIPTION">Torznab API Description</label>
+                <input type="text" id="TORZNAB_DESCRIPTION" name="TORZNAB_DESCRIPTION" 
+                       value="{{ settings.TORZNAB_DESCRIPTION or '' }}" 
+                       placeholder="AudiobookBay search via Torznab API">
+                <small>Description for Torznab API</small>
+            </div>
+        </div>
+        
+        <!-- Development Settings -->
+        <div class="settings-section development-section">
+            <h2>🛠️ Development Settings</h2>
+            <p class="section-description">Development and debugging options</p>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="FLASK_DEBUG">Debug Mode</label>
+                    <select id="FLASK_DEBUG" name="FLASK_DEBUG">
+                        <option value="false" {% if settings.FLASK_DEBUG != 'true' %}selected{% endif %}>Disabled</option>
+                        <option value="true" {% if settings.FLASK_DEBUG == 'true' %}selected{% endif %}>Enabled</option>
+                    </select>
+                    <small>Enable Flask debug mode (development only)</small>
+                </div>
+                
+                <div class="form-group">
+                    <label for="DEV_PORT">Development Port</label>
+                    <input type="number" id="DEV_PORT" name="DEV_PORT" 
+                           value="{{ settings.DEV_PORT or 5079 }}" 
+                           min="1024" max="65535" placeholder="5079">
+                    <small>Port for development server (1024-65535)</small>
+                </div>
+            </div>
+        </div>
+        
+        <div class="form-actions">
+            <button type="submit" class="btn-primary">
+                💾 Save Settings
+            </button>
+            <button type="button" class="btn-secondary" onclick="location.reload()">
+                🔄 Reset Form
+            </button>
+        </div>
+    </form>
+    
+    <div class="settings-info">
+        <h3>ℹ️ Important Notes</h3>
+        <ul>
+            <li><strong>Environment File:</strong> Changes are saved to a <code>.env</code> file</li>
+            {% if is_container %}
+            <li><strong>Container Mode:</strong> You're running in Docker. Settings are saved to <code>/config/.env</code> if mounted, otherwise to the app directory</li>
+            <li><strong>Docker Override:</strong> Environment variables set in <code>docker-compose.yaml</code> will always override these settings</li>
+            <li><strong>Persistence:</strong> To persist changes, ensure you have a volume mounted at <code>/config</code></li>
+            <li><strong>Restart Required:</strong> Container restart may be required for some changes to take effect</li>
+            {% else %}
+            <li><strong>Local Mode:</strong> Settings are saved to the project's <code>.env</code> file</li>
+            <li><strong>Restart Required:</strong> Some changes may require an application restart</li>
+            {% endif %}
+            <li><strong>Sensitive Data:</strong> Passwords and API keys are stored in plain text - use Docker secrets for production</li>
+        </ul>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+// Show/hide development settings based on environment
+document.addEventListener('DOMContentLoaded', function() {
+    // Add form validation
+    const form = document.querySelector('.settings-form');
+    form.addEventListener('submit', function(e) {
+        const requiredFields = ['ABB_HOSTNAME'];
+        let isValid = true;
+        
+        requiredFields.forEach(field => {
+            const input = document.getElementById(field);
+            if (!input.value.trim()) {
+                input.style.borderColor = '#e74c3c';
+                isValid = false;
+            } else {
+                input.style.borderColor = '';
+            }
+        });
+        
+        if (!isValid) {
+            e.preventDefault();
+            alert('Please fill in all required fields (marked with *)');
+        }
+    });
+    
+    // Auto-hide success messages
+    const successAlert = document.querySelector('.alert-success');
+    if (successAlert) {
+        setTimeout(() => {
+            successAlert.style.opacity = '0';
+            setTimeout(() => successAlert.remove(), 300);
+        }, 5000);
+    }
+});
+</script>
+{% endblock %}
