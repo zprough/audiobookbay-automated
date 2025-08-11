@@ -160,6 +160,162 @@ img.cover {
         align-self: flex-start;
     }
 }
+
+/* Mobile responsive design */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    h1 {
+        font-size: 2rem;
+        margin-top: 10px;
+        text-align: center;
+    }
+    
+    /* Make search form more compact on mobile */
+    input[type="text"] {
+        width: 250px;
+        font-size: 16px; /* Prevents zoom on iOS */
+    }
+    
+    /* Filter container adjustments */
+    .filter-container {
+        width: 95%;
+        margin: 15px auto;
+        padding: 12px;
+    }
+    
+    .filter-container h3 {
+        font-size: 1.1em;
+        margin-bottom: 12px;
+    }
+    
+    /* Table layout changes for mobile */
+    table {
+        width: 95%;
+        margin: 15px auto;
+    }
+    
+    /* Convert table to card layout on mobile */
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+    
+    tr {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        margin-bottom: 15px;
+        padding: 15px;
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    td {
+        border: none;
+        padding: 8px 0;
+        position: relative;
+    }
+    
+    /* Mobile card layout */
+    .mobile-card {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+    
+    .mobile-card-header {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+    }
+    
+    .mobile-cover {
+        flex-shrink: 0;
+        width: 60px !important;
+        height: auto;
+        border-radius: 4px;
+    }
+    
+    .mobile-title-section {
+        flex: 1;
+        min-width: 0;
+    }
+    
+    .book-title {
+        font-size: 1em;
+        line-height: 1.3;
+        margin-bottom: 6px;
+    }
+    
+    .book-metadata {
+        margin-top: 6px;
+    }
+    
+    .book-meta {
+        font-size: 0.8em;
+        margin: 2px 0;
+        line-height: 1.2;
+    }
+    
+    .book-meta strong {
+        display: inline;
+        margin-right: 4px;
+    }
+    
+    /* Compact metadata display */
+    .mobile-meta-compact {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin-top: 8px;
+    }
+    
+    .meta-chip {
+        background: rgba(255, 255, 255, 0.1);
+        padding: 3px 8px;
+        border-radius: 12px;
+        font-size: 0.75em;
+        color: #cccccc;
+    }
+    
+    /* Mobile button layout */
+    .mobile-actions {
+        display: flex;
+        gap: 8px;
+        margin-top: 10px;
+    }
+    
+    .mobile-actions button {
+        flex: 1;
+        padding: 10px 8px;
+        font-size: 0.9em;
+        margin: 0;
+    }
+    
+    /* Hide verbose metadata on very small screens */
+    @media (max-width: 480px) {
+        .book-meta:nth-child(n+3) {
+            display: none;
+        }
+        
+        .mobile-cover {
+            width: 50px !important;
+        }
+        
+        .book-title {
+            font-size: 0.95em;
+        }
+        
+        .filter-container {
+            width: 98%;
+            padding: 10px;
+        }
+        
+        table {
+            width: 98%;
+        }
+    }
+}
 .search-container {
     display: flex;
     align-items: center;

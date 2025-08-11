@@ -287,3 +287,98 @@
     outline: 2px solid #2874a6;
     outline-offset: 2px;
 }
+
+/* Mobile responsive design */
+@media (max-width: 768px) {
+    .settings-container {
+        width: 95%;
+        padding: 15px;
+        margin-top: 15px;
+    }
+    
+    .settings-container h1 {
+        font-size: 1.8rem;
+        margin-bottom: 20px;
+    }
+    
+    .form-section {
+        margin-bottom: 25px;
+    }
+    
+    .form-section h2 {
+        font-size: 1.3rem;
+        margin-bottom: 15px;
+    }
+    
+    .form-group {
+        margin-bottom: 15px;
+    }
+    
+    .form-group label {
+        font-size: 0.9rem;
+        margin-bottom: 5px;
+    }
+    
+    .form-group input,
+    .form-group select {
+        font-size: 16px; /* Prevents zoom on iOS */
+        padding: 12px;
+    }
+    
+    .button-group {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+    }
+    
+    .btn-primary,
+    .btn-secondary {
+        width: 100%;
+        padding: 12px;
+        font-size: 1rem;
+        margin: 0;
+    }
+    
+    .environment-info {
+        padding: 12px;
+    }
+    
+    .environment-info h3 {
+        font-size: 1.1rem;
+    }
+    
+    .env-detail {
+        font-size: 0.9rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .settings-container {
+        width: 98%;
+        padding: 10px;
+        margin-top: 10px;
+    }
+    
+    .settings-container h1 {
+        font-size: 1.6rem;
+    }
+    
+    .form-section h2 {
+        font-size: 1.2rem;
+    }
+    
+    .form-group label {
+        font-size: 0.85rem;
+    }
+    
+    .form-group input,
+    .form-group select {
+        padding: 10px;
+        font-size: 16px;
+    }
+    
+    .alert {
+        padding: 10px;
+        font-size: 0.9rem;
+    }
+}

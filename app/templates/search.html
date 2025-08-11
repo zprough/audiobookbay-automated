@@ -201,22 +201,107 @@
 
         books.forEach(book => {
             const row = document.createElement('tr');
-            row.innerHTML = `
-                <td><img src="${book.cover}" alt="Cover Art" class="cover" width="100"></td>
-                <td>
-                    <div class="book-title">${book.title}</div>
-                    <div class="book-metadata">
-                        ${book.language ? `<div class="book-meta"><strong>Language:</strong> ${book.language}</div>` : ''}
-                        ${book.format ? `<div class="book-meta"><strong>Format:</strong> ${book.format}</div>` : ''}
-                        ${book.categories.length > 0 ? `<div class="book-meta"><strong>Categories:</strong> ${book.categories.join(', ')}</div>` : ''}
-                        ${book.keywords.length > 0 ? `<div class="book-meta"><strong>Keywords:</strong> ${book.keywords.join(', ')}</div>` : ''}
-                    </div>
-                </td>
-                <td>
-                    <button onclick="window.open('${book.link}', '_blank')">Details</button>
-                    <button onclick="sendToQB('${book.link.replace(/'/g, "\\'")}', '${book.title.replace(/'/g, "\\'")}')">Download to Server</button>
-                </td>
-            `;
+            
+            // Check if we're on mobile
+            if (window.innerWidth <= 768) {
+                // Mobile layout - single cell with card design
+                const mobileCell = document.createElement('td');
+                mobileCell.colSpan = 3;
+                
+                const mobileCard = document.createElement('div');
+                mobileCard.className = 'mobile-card';
+                
+                // Mobile card header with cover and title
+                const cardHeader = document.createElement('div');
+                cardHeader.className = 'mobile-card-header';
+                
+                const img = document.createElement('img');
+                img.src = book.cover || '/static/images/default_cover.jpg';
+                img.alt = 'Book cover';
+                img.className = 'mobile-cover';
+                cardHeader.appendChild(img);
+                
+                const titleSection = document.createElement('div');
+                titleSection.className = 'mobile-title-section';
+                
+                const titleDiv = document.createElement('div');
+                titleDiv.className = 'book-title';
+                titleDiv.textContent = book.title;
+                titleSection.appendChild(titleDiv);
+                
+                // Compact metadata chips for mobile
+                const metaCompact = document.createElement('div');
+                metaCompact.className = 'mobile-meta-compact';
+                
+                if (book.language) {
+                    const chip = document.createElement('span');
+                    chip.className = 'meta-chip';
+                    chip.textContent = book.language;
+                    metaCompact.appendChild(chip);
+                }
+                
+                if (book.format) {
+                    const chip = document.createElement('span');
+                    chip.className = 'meta-chip';
+                    chip.textContent = book.format;
+                    metaCompact.appendChild(chip);
+                }
+                
+                // Show first 2 categories only on mobile
+                if (book.categories && book.categories.length > 0) {
+                    const categoriesToShow = book.categories.slice(0, 2);
+                    categoriesToShow.forEach(category => {
+                        const chip = document.createElement('span');
+                        chip.className = 'meta-chip';
+                        chip.textContent = category;
+                        metaCompact.appendChild(chip);
+                    });
+                }
+                
+                titleSection.appendChild(metaCompact);
+                cardHeader.appendChild(titleSection);
+                mobileCard.appendChild(cardHeader);
+                
+                // Mobile action buttons
+                const mobileActions = document.createElement('div');
+                mobileActions.className = 'mobile-actions';
+                
+                const detailsButton = document.createElement('button');
+                detailsButton.textContent = 'Details';
+                detailsButton.className = 'details-btn';
+                detailsButton.onclick = () => window.open(book.link, '_blank');
+                
+                const downloadButton = document.createElement('button');
+                downloadButton.textContent = 'Download';
+                downloadButton.className = 'download-btn';
+                downloadButton.onclick = () => sendToQB(book.link.replace(/'/g, "\\'"), book.title.replace(/'/g, "\\'"));
+                
+                mobileActions.appendChild(detailsButton);
+                mobileActions.appendChild(downloadButton);
+                mobileCard.appendChild(mobileActions);
+                
+                mobileCell.appendChild(mobileCard);
+                row.appendChild(mobileCell);
+            } else {
+                // Desktop layout (original)
+                row.innerHTML = `
+                    <td><img src="${book.cover || '/static/images/default_cover.jpg'}" alt="Cover Art" class="cover" width="100"></td>
+                    <td>
+                        <div class="book-title">${book.title}</div>
+                        <div class="book-metadata">
+                            ${book.language ? `<div class="book-meta"><strong>Language:</strong> ${book.language}</div>` : ''}
+                            ${book.format ? `<div class="book-meta"><strong>Format:</strong> ${book.format}</div>` : ''}
+                            ${book.categories.length > 0 ? `<div class="book-meta"><strong>Categories:</strong> ${book.categories.join(', ')}</div>` : ''}
+                            ${book.keywords.length > 0 ? `<div class="book-meta"><strong>Keywords:</strong> ${book.keywords.join(', ')}</div>` : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <button onclick="window.open('${book.link}', '_blank')">Details</button>
+                        <button onclick="sendToQB('${book.link.replace(/'/g, "\\'")}', '${book.title.replace(/'/g, "\\'")}')">Download to Server</button>
+                    </td>
+                `;
+            }
+            
             tbody.appendChild(row);
         });
     }
@@ -244,6 +329,42 @@
             updateResultsTable(allBooks);
             updateFilterStatus(allBooks.length, allBooks.length);
         }
+    });
+
+    // Handle window resize to update table layout
+    window.addEventListener('resize', function() {
+        // Debounce resize events to avoid too many updates
+        clearTimeout(window.resizeTimeout);
+        window.resizeTimeout = setTimeout(function() {
+            if (allBooks.length > 0) {
+                // Re-render the current filtered results
+                const englishFilter = document.getElementById('englishFilter').checked;
+                const fullCastInclude = document.getElementById('fullCastInclude').checked;
+                const fullCastExclude = document.getElementById('fullCastExclude').checked;
+                
+                let filteredBooks = allBooks.filter(book => {
+                    if (englishFilter && book.language.toLowerCase() !== 'english') {
+                        return false;
+                    }
+                    
+                    const hasFullCast = book.categories.some(cat => 
+                        cat.toLowerCase().includes('full cast')
+                    );
+                    
+                    if (fullCastInclude && !hasFullCast) {
+                        return false;
+                    }
+                    
+                    if (fullCastExclude && hasFullCast) {
+                        return false;
+                    }
+                    
+                    return true;
+                });
+                
+                updateResultsTable(filteredBooks);
+            }
+        }, 250);
     });
 </script>
 

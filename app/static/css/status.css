@@ -42,3 +42,82 @@ td {
 tr:hover td {
     background-color: rgba(255, 255, 255, 0.2);
 }
+
+/* Mobile responsive design */
+@media (max-width: 768px) {
+    body {
+        padding: 10px;
+    }
+    
+    h1 {
+        font-size: 2rem;
+        margin-top: 15px;
+        text-align: center;
+    }
+    
+    table {
+        width: 95%;
+        margin-top: 15px;
+    }
+    
+    th, td {
+        padding: 10px 8px;
+        font-size: 0.9rem;
+    }
+    
+    th {
+        font-size: 0.8rem;
+    }
+    
+    /* Stack table content vertically on mobile */
+    table, thead, tbody, th, td, tr {
+        display: block;
+    }
+    
+    tr {
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        border-radius: 8px;
+        margin-bottom: 10px;
+        padding: 10px;
+        background: rgba(255, 255, 255, 0.05);
+    }
+    
+    td {
+        border: none;
+        padding: 5px 0;
+        position: relative;
+        padding-left: 30%;
+    }
+    
+    td:before {
+        content: attr(data-label) ": ";
+        position: absolute;
+        left: 0;
+        width: 28%;
+        font-weight: bold;
+        color: #cccccc;
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.8rem;
+    }
+    
+    table {
+        width: 98%;
+    }
+    
+    th, td {
+        font-size: 0.85rem;
+    }
+    
+    td {
+        padding-left: 35%;
+    }
+    
+    td:before {
+        width: 33%;
+        font-size: 0.8rem;
+    }
+}
