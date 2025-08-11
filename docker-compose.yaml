@@ -2,7 +2,10 @@ version: '3.8'
 
 services:
   audiobookbay-automated:
-    image: ghcr.io/jamesry96/audiobookbay-automated:latest
+    # Use a specific version for production deployments
+    # image: ghcr.io/zprough/audiobookbay-automated:v1.0.0
+    # Or use latest for development
+    image: ghcr.io/zprough/audiobookbay-automated:latest
     ports:
       - "5078:5078"
     container_name: audiobookbay-automated
