@@ -50,6 +50,9 @@ SAVE_PATH_BASE=/audiobooks     # Root path for audiobook downloads (relative to 
 ABB_HOSTNAME='audiobookbay.is' # Default
 PAGE_LIMIT=5                   # Defaults to 5 if not set, more than this may probably rate limit.
 ABB_TIMEOUT=8                  # (Seconds) network timeout and mirror probe timeout (optional)
+INCOGNITO_MODE=true            # (Optional) Enable per-request incognito style headers (no persistent cookies, cache bust)
+ROTATE_USER_AGENT=true         # (Optional) Rotate user-agent each request (default true)
+DISABLE_CACHE_BUST=false       # (Optional) If true, disables the _cb cache-busting query string
 ```
 Mirror Fallback:
 
@@ -62,6 +65,20 @@ If the primary AudiobookBay domain is down or blocked, the application will auto
 5. `theaudiobookbay.se`
 
 The first responsive mirror is cached for subsequent requests. If a request later fails, the cache is cleared and mirrors are retried. You can override the initial preferred domain via `ABB_HOSTNAME`.
+
+Incognito / Header Randomization:
+
+When `INCOGNITO_MODE` is enabled the scraper will:
+- Rotate user-agents (if `ROTATE_USER_AGENT` true)
+- Avoid reusing a persistent connection (`Connection: close`)
+- Add `Pragma: no-cache` and `Cache-Control: no-cache`
+- Append a short cache-busting parameter (`_cb=timestamp`) to search and details page requests (unless `DISABLE_CACHE_BUST` is true)
+
+This does NOT anonymize your IP address. For stronger anonymity consider running the container behind:
+- A VPN egress
+- A rotating proxy provider
+- Tor (with appropriate legal/ethical considerations and respecting site ToS)
+
 
 The following optional variables add an additional entry to the navigation bar. This is useful for linking to your audiobook player or another related service:
 
