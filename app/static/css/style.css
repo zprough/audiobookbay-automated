@@ -1,6 +1,16 @@
+/* Base styles for all pages */
+body {
+    font-family: Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    background: linear-gradient(135deg, #1a252f, #2c3e50, #34495e);
+    color: white;
+    min-height: 100vh;
+}
+
 .navbar {
     width: 100%;
-    background-color: rgba(0, 0, 0, 0.3);
+    background-color: #1a252f;
     display: flex;
     justify-content: center;
     padding: 10px 0;
@@ -38,4 +48,62 @@ h1 {
     text-shadow: 2px 2px 5px rgba(0, 0, 0, 0.5);
     margin: 0 auto;
     width: fit-content; 
+}
+
+/* Mobile responsive design */
+@media (max-width: 768px) {
+    body {
+        padding: 0 10px 10px 10px; /* Remove top padding, keep left/right/bottom */
+        margin: 0; /* Ensure no margin */
+    }
+    
+    h1 {
+        font-size: 2rem;
+        margin: 15px 0;
+        text-align: center;
+    }
+    
+    .navbar {
+        padding: 5px 0;
+        flex-wrap: wrap;
+        margin: 0; /* Ensure no margin on navbar */
+        top: 0; /* Explicitly set top to 0 */
+        position: sticky;
+    }
+    
+    .navbar a {
+        margin: 5px 10px;
+        font-size: 1.1rem;
+    }
+    
+    .title-container {
+        margin-bottom: 15px;
+        margin-top: 15px; /* Add top margin to title instead of body padding */
+    }
+}
+
+@media (max-width: 480px) {
+    h1 {
+        font-size: 1.8rem;
+    }
+    
+    .navbar {
+        margin: 0; /* Ensure no margin on navbar */
+        top: 0; /* Explicitly set top to 0 */
+        position: sticky;
+    }
+    
+    .navbar a {
+        margin: 3px 8px;
+        font-size: 1rem;
+    }
+    
+    body {
+        padding: 0 5px 5px 5px; /* Remove top padding, keep left/right/bottom */
+        margin: 0; /* Ensure no margin */
+    }
+    
+    .title-container {
+        margin-top: 10px; /* Add top margin to title instead of body padding */
+    }
 }
