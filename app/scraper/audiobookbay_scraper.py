@@ -13,6 +13,8 @@ from bs4 import BeautifulSoup
 from urllib.parse import quote, urljoin
 from datetime import datetime
 from functools import lru_cache
+import random
+import time
 
 # =============================================================================
 # CONFIGURATION
@@ -55,7 +57,7 @@ def _probe_mirror(hostname: str) -> bool:
     """
     url = f"https://{hostname}/"
     try:
-        resp = requests.get(url, headers=DEFAULT_HEADERS, timeout=PROBE_TIMEOUT)
+        resp = requests.get(url, headers=_build_request_headers(), timeout=PROBE_TIMEOUT)
         if resp.status_code == 200 and resp.text:
             return True
     except requests.exceptions.RequestException:
@@ -88,10 +90,37 @@ def get_active_hostname() -> str:
         print(f"[SCRAPER] Mirror selection failed: {e}")
         return MIRROR_HOSTNAMES[0]
 
-# Request headers to mimic a real browser
-DEFAULT_HEADERS = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36'
-}
+# Request header / incognito configuration
+INCOGNITO_MODE: bool = os.getenv("INCOGNITO_MODE", "false").lower() in {"1", "true", "yes", "on"}
+ROTATE_USER_AGENT: bool = os.getenv("ROTATE_USER_AGENT", "true").lower() in {"1", "true", "yes", "on"}
+DISABLE_CACHE_BUST: bool = os.getenv("DISABLE_CACHE_BUST", "false").lower() in {"1", "true", "yes", "on"}
+
+BASE_USER_AGENTS = [
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15',
+    'Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0',
+    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
+]
+
+def _pick_user_agent() -> str:
+    return random.choice(BASE_USER_AGENTS) if ROTATE_USER_AGENT else BASE_USER_AGENTS[0]
+
+def _build_request_headers(extra: Optional[Dict[str, str]] = None) -> Dict[str, str]:
+    headers = {
+        'User-Agent': _pick_user_agent(),
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Connection': 'close' if INCOGNITO_MODE else 'keep-alive',
+        'Pragma': 'no-cache',
+        'Cache-Control': 'no-cache',
+    }
+    if extra:
+        headers.update(extra)
+    return headers
+
+# Preserve symbol for compatibility (represents one generated header set at import time)
+DEFAULT_HEADERS = _build_request_headers()
 
 # Default trackers for magnet links when none are found
 DEFAULT_TRACKERS = [
@@ -188,8 +217,13 @@ def _scrape_search_page(query: str, page: int) -> List[Dict[str, str]]:
         List[Dict[str, str]]: List of results from this page
     """
     def _do(host: str) -> List[Dict[str, str]]:
-        url = f"https://{host}/page/{page}/?s={query.replace(' ', '+')}&cat=undefined%2Cundefined"
-        response = requests.get(url, headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT)
+        base_url = f"https://{host}/page/{page}/?s={query.replace(' ', '+')}&cat=undefined%2Cundefined"
+        if INCOGNITO_MODE and not DISABLE_CACHE_BUST:
+            sep = '&' if '?' in base_url else '?'
+            url = f"{base_url}{sep}_cb={int(time.time()*1000)}{random.randint(0,999)}"
+        else:
+            url = base_url
+        response = requests.get(url, headers=_build_request_headers(), timeout=REQUEST_TIMEOUT)
         if response.status_code != 200:
             raise requests.exceptions.RequestException(f"Status {response.status_code} on {host}")
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -442,7 +476,12 @@ def extract_magnet_link(details_url: str) -> Optional[str]:
                     break
         except Exception:
             pass
-        response = requests.get(details_url, headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT)
+        if INCOGNITO_MODE and not DISABLE_CACHE_BUST:
+            sep = '&' if '?' in details_url else '?'
+            details_url_cb = f"{details_url}{sep}_cb={int(time.time()*1000)}{random.randint(0,999)}"
+        else:
+            details_url_cb = details_url
+        response = requests.get(details_url_cb, headers=_build_request_headers(), timeout=REQUEST_TIMEOUT)
         if response.status_code != 200:
             print(f"[SCRAPER] Failed to fetch details page. Status Code: {response.status_code}")
             return None
@@ -593,5 +632,7 @@ def get_scraper_stats() -> Dict[str, str]:
         'page_limit': str(PAGE_LIMIT),
         'timeout_seconds': str(REQUEST_TIMEOUT),
         'default_trackers_count': str(len(DEFAULT_TRACKERS)),
-        'user_agent': DEFAULT_HEADERS['User-Agent']
+        'user_agent': DEFAULT_HEADERS['User-Agent'],
+        'incognito_mode': str(INCOGNITO_MODE),
+        'ua_rotation': str(ROTATE_USER_AGENT)
     }
