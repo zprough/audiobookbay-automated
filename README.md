@@ -49,7 +49,20 @@ DL_CATEGORY=abb-downloader     # torrent category for downloads
 SAVE_PATH_BASE=/audiobooks     # Root path for audiobook downloads (relative to torrent)
 ABB_HOSTNAME='audiobookbay.is' # Default
 PAGE_LIMIT=5                   # Defaults to 5 if not set, more than this may probably rate limit.
+ABB_TIMEOUT=8                  # (Seconds) network timeout and mirror probe timeout (optional)
 ```
+Mirror Fallback:
+
+If the primary AudiobookBay domain is down or blocked, the application will automatically try the following mirrors (in this order) until one responds:
+
+1. Value of `ABB_HOSTNAME` (if provided and not already in list)
+2. `audiobookbay.lu`
+3. `audiobookbay.fi`
+4. `audiobookbay.is`
+5. `theaudiobookbay.se`
+
+The first responsive mirror is cached for subsequent requests. If a request later fails, the cache is cleared and mirrors are retried. You can override the initial preferred domain via `ABB_HOSTNAME`.
+
 The following optional variables add an additional entry to the navigation bar. This is useful for linking to your audiobook player or another related service:
 
 ```

@@ -8,18 +8,85 @@ import re
 import requests
 import base64
 import html as htmllib
-from typing import List, Dict, Optional, Any, Tuple
+from typing import List, Dict, Optional, Any, Tuple, Callable
 from bs4 import BeautifulSoup
 from urllib.parse import quote, urljoin
 from datetime import datetime
+from functools import lru_cache
 
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
 
 # AudiobookBay Configuration (from environment)
-ABB_HOSTNAME: str = os.getenv("ABB_HOSTNAME", "audiobookbay.lu")
+# Primary hostname (can be overridden). Mirrors will be tried in order until one responds.
+_ENV_HOST = os.getenv("ABB_HOSTNAME", "audiobookbay.lu").strip()
 PAGE_LIMIT: int = int(os.getenv("PAGE_LIMIT", 5))
+
+# Ordered list of mirrors. If user supplied a custom host, keep it first.
+MIRROR_HOSTNAMES: List[str] = []
+_default_mirrors = [
+    "audiobookbay.lu",
+    "audiobookbay.fi",
+    "audiobookbay.is",
+    "theaudiobookbay.se",
+]
+
+if _ENV_HOST and _ENV_HOST not in _default_mirrors:
+    MIRROR_HOSTNAMES.append(_ENV_HOST)
+for m in _default_mirrors:
+    if m not in MIRROR_HOSTNAMES:
+        MIRROR_HOSTNAMES.append(m)
+
+# Per-request timeout (seconds) when probing mirrors / fetching pages
+REQUEST_TIMEOUT: float = float(os.getenv("ABB_TIMEOUT", "8"))
+
+# How long (seconds) a HEAD/GET mirror probe may take before moving on (same as REQUEST_TIMEOUT for now)
+PROBE_TIMEOUT: float = REQUEST_TIMEOUT
+
+# Cache the selected working mirror for the life of the process. If it fails mid-run, we will clear cache.
+_ACTIVE_MIRROR: Optional[str] = None
+
+def _probe_mirror(hostname: str) -> bool:
+    """Check if a mirror is reachable quickly.
+
+    Uses a lightweight GET to front page (HEAD sometimes blocked). Returns True on HTTP 200.
+    Failures (timeout, connection, non-200) return False.
+    """
+    url = f"https://{hostname}/"
+    try:
+        resp = requests.get(url, headers=DEFAULT_HEADERS, timeout=PROBE_TIMEOUT)
+        if resp.status_code == 200 and resp.text:
+            return True
+    except requests.exceptions.RequestException:
+        return False
+    return False
+
+def _select_active_mirror(force_refresh: bool = False) -> str:
+    """Return an active mirror, probing in order if needed.
+
+    If force_refresh is True we ignore the cached value and probe again.
+    Raises RuntimeError if no mirrors are reachable.
+    """
+    global _ACTIVE_MIRROR
+    if _ACTIVE_MIRROR and not force_refresh:
+        return _ACTIVE_MIRROR
+    for host in MIRROR_HOSTNAMES:
+        if _probe_mirror(host):
+            _ACTIVE_MIRROR = host
+            if host != MIRROR_HOSTNAMES[0]:
+                print(f"[SCRAPER] Switched active AudiobookBay mirror to: {host}")
+            return host
+    raise RuntimeError("No AudiobookBay mirrors are reachable.")
+
+def get_active_hostname() -> str:
+    """Public accessor for currently selected mirror hostname (probing if necessary)."""
+    try:
+        return _select_active_mirror()
+    except Exception as e:
+        # Return first configured hostname as fallback (even if unreachable) to avoid crashes where string expected
+        print(f"[SCRAPER] Mirror selection failed: {e}")
+        return MIRROR_HOSTNAMES[0]
 
 # Request headers to mimic a real browser
 DEFAULT_HEADERS = {
@@ -72,6 +139,43 @@ def search_audiobookbay(query: str, max_pages: Optional[int] = None) -> List[Dic
     print(f"[SCRAPER] Found {len(results)} results for query: '{query}'")
     return results
 
+def _with_mirror_retry(fn: Callable[[str], Any]) -> Any:
+    """Execute a function that depends on a base hostname, retrying across mirrors on network errors.
+
+    The callable receives the active hostname and should perform work. If it raises a RequestException
+    or returns a special value signalling retry (None with attribute _retry), we cycle mirrors.
+    """
+    last_error: Optional[Exception] = None
+    tried: List[str] = []
+    for host in MIRROR_HOSTNAMES:
+        try:
+            # Optimistically set active mirror; if probe fails we'll move on.
+            _set_active_mirror(host)
+            if not _probe_mirror(host):
+                tried.append(host)
+                continue
+            result = fn(host)
+            return result
+        except requests.exceptions.RequestException as e:
+            last_error = e
+            tried.append(host)
+            _clear_active_mirror()
+            continue
+        except Exception as e:  # non-network errors: break early
+            last_error = e
+            break
+    if last_error:
+        raise last_error
+    raise RuntimeError(f"All mirrors failed ({', '.join(tried)})")
+
+def _set_active_mirror(host: str) -> None:
+    global _ACTIVE_MIRROR
+    _ACTIVE_MIRROR = host
+
+def _clear_active_mirror() -> None:
+    global _ACTIVE_MIRROR
+    _ACTIVE_MIRROR = None
+
 def _scrape_search_page(query: str, page: int) -> List[Dict[str, str]]:
     """
     Scrape a single search results page from AudiobookBay.
@@ -83,22 +187,17 @@ def _scrape_search_page(query: str, page: int) -> List[Dict[str, str]]:
     Returns:
         List[Dict[str, str]]: List of results from this page
     """
-    url = f"https://{ABB_HOSTNAME}/page/{page}/?s={query.replace(' ', '+')}&cat=undefined%2Cundefined"
-    
-    try:
-        response = requests.get(url, headers=DEFAULT_HEADERS, timeout=10)
+    def _do(host: str) -> List[Dict[str, str]]:
+        url = f"https://{host}/page/{page}/?s={query.replace(' ', '+')}&cat=undefined%2Cundefined"
+        response = requests.get(url, headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT)
         if response.status_code != 200:
-            print(f"[SCRAPER] Failed to fetch page {page}. Status Code: {response.status_code}")
-            return []
-
+            raise requests.exceptions.RequestException(f"Status {response.status_code} on {host}")
         soup = BeautifulSoup(response.text, 'html.parser')
         return _extract_posts_from_page(soup)
-        
-    except requests.exceptions.RequestException as e:
-        print(f"[SCRAPER] Network error on page {page}: {e}")
-        return []
+    try:
+        return _with_mirror_retry(_do)
     except Exception as e:
-        print(f"[SCRAPER] Unexpected error on page {page}: {e}")
+        print(f"[SCRAPER] Failed to fetch search page {page} across mirrors: {e}")
         return []
 
 def _extract_posts_from_page(soup: BeautifulSoup) -> List[Dict[str, str]]:
@@ -217,7 +316,7 @@ def _parse_post_details(html_snippet: str) -> Dict[str, Any]:
         html_snippet = f"<div>{htmllib.escape(html_snippet)}</div>"
 
     soup = BeautifulSoup(html_snippet, "html.parser")
-    base_url = f"https://{ABB_HOSTNAME}"
+    base_url = f"https://{get_active_hostname()}"
 
     # Extract title and post URL
     a_title = soup.select_one(".postTitle h2 a") or soup.find("a", rel="bookmark")
@@ -333,7 +432,17 @@ def extract_magnet_link(details_url: str) -> Optional[str]:
         Optional[str]: Generated magnet link or None if extraction fails
     """
     try:
-        response = requests.get(details_url, headers=DEFAULT_HEADERS, timeout=15)
+        # If the details_url contains an outdated mirror, rewrite to active mirror to reduce failures.
+        active_host = get_active_hostname()
+        try:
+            # Replace only the network location part if it matches a known mirror.
+            for mirror in MIRROR_HOSTNAMES:
+                if f"//{mirror}" in details_url:
+                    details_url = details_url.replace(mirror, active_host)
+                    break
+        except Exception:
+            pass
+        response = requests.get(details_url, headers=DEFAULT_HEADERS, timeout=REQUEST_TIMEOUT)
         if response.status_code != 200:
             print(f"[SCRAPER] Failed to fetch details page. Status Code: {response.status_code}")
             return None
@@ -468,7 +577,8 @@ def validate_audiobookbay_url(url: str) -> bool:
         return False
         
     # Check if URL is from the configured AudiobookBay hostname
-    return ABB_HOSTNAME in url and url.startswith('http')
+    active_host = get_active_hostname()
+    return any(m in url for m in MIRROR_HOSTNAMES) and url.startswith('http') and active_host.split(':')[0]
 
 def get_scraper_stats() -> Dict[str, str]:
     """
@@ -478,8 +588,10 @@ def get_scraper_stats() -> Dict[str, str]:
         Dict[str, str]: Configuration information
     """
     return {
-        'hostname': ABB_HOSTNAME,
+        'active_hostname': get_active_hostname(),
+        'configured_mirrors': ','.join(MIRROR_HOSTNAMES),
         'page_limit': str(PAGE_LIMIT),
+        'timeout_seconds': str(REQUEST_TIMEOUT),
         'default_trackers_count': str(len(DEFAULT_TRACKERS)),
         'user_agent': DEFAULT_HEADERS['User-Agent']
     }
