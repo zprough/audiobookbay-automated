@@ -10,11 +10,13 @@ import base64
 import html as htmllib
 from typing import List, Dict, Optional, Any, Tuple, Callable
 from bs4 import BeautifulSoup
-from urllib.parse import quote, urljoin
+from urllib.parse import quote, urljoin, urlparse, urlunparse
 from datetime import datetime
 from functools import lru_cache
 import random
 import time
+import dns.resolver
+from requests_toolbelt.adapters.host_header_ssl import HostHeaderSSLAdapter
 
 # =============================================================================
 # CONFIGURATION
@@ -46,6 +48,82 @@ REQUEST_TIMEOUT: float = float(os.getenv("ABB_TIMEOUT", "8"))
 # How long (seconds) a HEAD/GET mirror probe may take before moving on (same as REQUEST_TIMEOUT for now)
 PROBE_TIMEOUT: float = REQUEST_TIMEOUT
 
+# Force AudiobookBay DNS queries to go to specific resolvers instead of system/router DNS
+ABB_DNS_BYPASS: bool = os.getenv("ABB_DNS_BYPASS", "true").lower() in {"1", "true", "yes", "on"}
+_ABB_DNS_SERVERS_RAW: str = os.getenv("ABB_DNS_SERVERS", "1.1.1.1,8.8.8.8")
+ABB_DNS_SERVERS: List[str] = [s.strip() for s in _ABB_DNS_SERVERS_RAW.split(",") if s.strip()]
+ABB_DNS_LIFETIME: float = float(os.getenv("ABB_DNS_LIFETIME", "2.5"))
+
+# Session that supports TLS SNI via Host header while connecting to resolved IPs.
+_ABB_SESSION = requests.Session()
+_ABB_SESSION.mount("https://", HostHeaderSSLAdapter())
+
+
+def _build_dns_resolver() -> dns.resolver.Resolver:
+    resolver = dns.resolver.Resolver(configure=False)
+    resolver.nameservers = ABB_DNS_SERVERS or ["1.1.1.1", "8.8.8.8"]
+    resolver.timeout = ABB_DNS_LIFETIME
+    resolver.lifetime = ABB_DNS_LIFETIME
+    return resolver
+
+
+_ABB_RESOLVER = _build_dns_resolver()
+
+
+def _is_abb_hostname(hostname: str) -> bool:
+    return hostname in MIRROR_HOSTNAMES
+
+
+@lru_cache(maxsize=256)
+def _resolve_abb_hostname(hostname: str) -> Tuple[str, ...]:
+    """Resolve an ABB hostname using explicit resolvers (no system DNS)."""
+    answers = _ABB_RESOLVER.resolve(hostname, "A")
+    ips = tuple(str(answer) for answer in answers)
+    if not ips:
+        raise requests.exceptions.RequestException(f"No A records found for {hostname}")
+    return ips
+
+
+def _replace_url_hostname_with_ip(url: str, ip_address: str) -> str:
+    parsed = urlparse(url)
+    port = f":{parsed.port}" if parsed.port else ""
+    new_netloc = f"{ip_address}{port}"
+    return urlunparse((parsed.scheme, new_netloc, parsed.path, parsed.params, parsed.query, parsed.fragment))
+
+
+def _abb_request(
+    method: str,
+    url: str,
+    *,
+    headers: Optional[Dict[str, str]] = None,
+    timeout: float,
+) -> requests.Response:
+    """Make HTTP requests, forcing AudiobookBay DNS through configured resolvers."""
+    parsed = urlparse(url)
+    hostname = parsed.hostname or ""
+
+    if not ABB_DNS_BYPASS or not _is_abb_hostname(hostname):
+        return requests.request(method, url, headers=headers, timeout=timeout)
+
+    resolved_ips = _resolve_abb_hostname(hostname)
+    request_headers = dict(headers or {})
+    request_headers["Host"] = hostname
+
+    last_error: Optional[Exception] = None
+    for ip in resolved_ips:
+        ip_url = _replace_url_hostname_with_ip(url, ip)
+        try:
+            return _ABB_SESSION.request(method, ip_url, headers=request_headers, timeout=timeout)
+        except requests.exceptions.RequestException as exc:
+            last_error = exc
+            continue
+
+    if last_error:
+        raise requests.exceptions.RequestException(
+            f"Failed ABB request via direct DNS-resolved IPs ({hostname})"
+        ) from last_error
+    raise requests.exceptions.RequestException(f"Failed ABB request for {hostname}")
+
 # Cache the selected working mirror for the life of the process. If it fails mid-run, we will clear cache.
 _ACTIVE_MIRROR: Optional[str] = None
 
@@ -57,7 +135,7 @@ def _probe_mirror(hostname: str) -> bool:
     """
     url = f"https://{hostname}/"
     try:
-        resp = requests.get(url, headers=_build_request_headers(), timeout=PROBE_TIMEOUT)
+        resp = _abb_request("GET", url, headers=_build_request_headers(), timeout=PROBE_TIMEOUT)
         if resp.status_code == 200 and resp.text:
             return True
     except requests.exceptions.RequestException:
@@ -223,7 +301,7 @@ def _scrape_search_page(query: str, page: int) -> List[Dict[str, str]]:
             url = f"{base_url}{sep}_cb={int(time.time()*1000)}{random.randint(0,999)}"
         else:
             url = base_url
-        response = requests.get(url, headers=_build_request_headers(), timeout=REQUEST_TIMEOUT)
+        response = _abb_request("GET", url, headers=_build_request_headers(), timeout=REQUEST_TIMEOUT)
         if response.status_code != 200:
             raise requests.exceptions.RequestException(f"Status {response.status_code} on {host}")
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -481,7 +559,7 @@ def extract_magnet_link(details_url: str) -> Optional[str]:
             details_url_cb = f"{details_url}{sep}_cb={int(time.time()*1000)}{random.randint(0,999)}"
         else:
             details_url_cb = details_url
-        response = requests.get(details_url_cb, headers=_build_request_headers(), timeout=REQUEST_TIMEOUT)
+        response = _abb_request("GET", details_url_cb, headers=_build_request_headers(), timeout=REQUEST_TIMEOUT)
         if response.status_code != 200:
             print(f"[SCRAPER] Failed to fetch details page. Status Code: {response.status_code}")
             return None

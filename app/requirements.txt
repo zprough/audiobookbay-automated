@@ -1,5 +1,7 @@
 flask
 requests
+requests-toolbelt
+dnspython
 beautifulsoup4
 qbittorrent-api
 python-dotenv

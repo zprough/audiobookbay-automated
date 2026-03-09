@@ -50,6 +50,9 @@ SAVE_PATH_BASE=/audiobooks     # Root path for audiobook downloads (relative to 
 ABB_HOSTNAME='audiobookbay.is' # Default
 PAGE_LIMIT=5                   # Defaults to 5 if not set, more than this may probably rate limit.
 ABB_TIMEOUT=8                  # (Seconds) network timeout and mirror probe timeout (optional)
+ABB_DNS_BYPASS=true            # (Optional) Force ABB DNS lookups to custom resolvers (default true)
+ABB_DNS_SERVERS=1.1.1.1,8.8.8.8 # (Optional) DNS resolvers used only for ABB mirror hostnames
+ABB_DNS_LIFETIME=2.5           # (Optional) DNS query timeout/lifetime in seconds
 INCOGNITO_MODE=true            # (Optional) Enable per-request incognito style headers (no persistent cookies, cache bust)
 ROTATE_USER_AGENT=true         # (Optional) Rotate user-agent each request (default true)
 DISABLE_CACHE_BUST=false       # (Optional) If true, disables the _cb cache-busting query string
@@ -78,6 +81,12 @@ This does NOT anonymize your IP address. For stronger anonymity consider running
 - A VPN egress
 - A rotating proxy provider
 - Tor (with appropriate legal/ethical considerations and respecting site ToS)
+
+DNS Bypass Behavior:
+
+When `ABB_DNS_BYPASS=true`, requests to AudiobookBay mirrors are resolved using `ABB_DNS_SERVERS`
+instead of your system/router DNS. This helps bypass local DNS filtering (for example, AdGuard DNS)
+for ABB mirror lookups while leaving non-ABB traffic unchanged.
 
 
 The following optional variables add an additional entry to the navigation bar. This is useful for linking to your audiobook player or another related service:
