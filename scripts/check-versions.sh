@@ -27,6 +27,6 @@ fi
 # Show some useful commands
 echo "🔧 Useful commands:"
 echo "  • Pull latest:     docker pull $REGISTRY_URL/$REPO:latest"
-echo "  • Pull specific:   docker pull $REGISTRY_URL/$REPO:v1.0.0"
+echo "  • Pull specific:   docker pull $REGISTRY_URL/$REPO:v1.0.2"
 echo "  • List local:      docker images $REGISTRY_URL/$REPO"
 echo "  • Create release:  ./scripts/release.sh <version>"

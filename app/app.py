@@ -45,10 +45,11 @@ def log_configuration() -> None:
     
     # Scraper configuration
     scraper_stats = get_scraper_stats()
+    hostname = scraper_stats.get('active_hostname') or scraper_stats.get('hostname') or 'unavailable'
     print("SCRAPER CONFIGURATION:")
-    print(f"  ABB_HOSTNAME: {scraper_stats['hostname']}")
-    print(f"  PAGE_LIMIT: {scraper_stats['page_limit']}")
-    print(f"  DEFAULT_TRACKERS: {scraper_stats['default_trackers_count']}")
+    print(f"  ABB_HOSTNAME: {hostname}")
+    print(f"  PAGE_LIMIT: {scraper_stats.get('page_limit', 'unknown')}")
+    print(f"  DEFAULT_TRACKERS: {scraper_stats.get('default_trackers_count', 'unknown')}")
     
     # Download client configuration
     client_info = get_client_info()

@@ -2,7 +2,7 @@
 
 # Release script for audiobookbay-automated
 # Usage: ./scripts/release.sh [version]
-# Example: ./scripts/release.sh 1.0.1
+# Example: ./scripts/release.sh 1.0.2
 
 set -e
 
@@ -17,7 +17,7 @@ NC='\033[0m' # No Color
 if [ -z "$1" ]; then
     echo -e "${RED}Error: Version number required${NC}"
     echo "Usage: $0 <version>"
-    echo "Example: $0 1.0.1"
+    echo "Example: $0 1.0.2"
     exit 1
 fi
 
@@ -26,7 +26,7 @@ CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 # Validate version format (semantic versioning)
 if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo -e "${RED}Error: Version must follow semantic versioning (e.g., 1.0.1)${NC}"
+    echo -e "${RED}Error: Version must follow semantic versioning (e.g., 1.0.2)${NC}"
     exit 1
 fi
 
