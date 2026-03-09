@@ -5,10 +5,11 @@ services:
     # Build from local Dockerfile instead of pulling from registry
     build: .
     ports:
-      - "5078:5078"
+      - "${DEV_PORT:-5079}:${DEV_PORT:-5079}"
     container_name: audiobookbay-automated-dev
     environment:
       - FLASK_DEBUG=true
+      - DEV_PORT=${DEV_PORT:-5079}
       - DOWNLOAD_CLIENT=${DOWNLOAD_CLIENT}
       - DL_HOST=${DL_HOST}
       - DL_PORT=${DL_PORT}

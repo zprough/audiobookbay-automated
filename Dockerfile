@@ -10,6 +10,9 @@ LABEL org.opencontainers.image.licenses="MIT"
 # Set the working directory in the container
 WORKDIR /app
 
+# Ensure Python output is not buffered so logs appear immediately in Docker
+ENV PYTHONUNBUFFERED=1
+
 # Copy the app directory contents into the container
 COPY /app /app
 
@@ -20,4 +23,4 @@ RUN pip install --no-cache-dir -r /app/requirements.txt
 EXPOSE 5078
 
 # Define the command to run the application
-CMD ["python", "app.py"]
+CMD ["python", "-u", "app.py"]

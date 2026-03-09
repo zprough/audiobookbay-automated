@@ -1,13 +1,11 @@
 services:
   audiobookbay-downloader:
-    image: ghcr.io/zprough/audiobookbay-automated:latest
+    image: ghcr.io/zprough/audiobookbay-automated:1.0.3
     container_name: audiobookbay-downloader
     restart: unless-stopped
-    networks:
-      - t3_proxy
-      - socket_proxy
-    ports:
-      - "5078:5078"
+    network_mode: service:warp
+    depends_on:
+      - warp
     volumes:
       - $DOCKERDIR/appdata/audiobookbay-automated:/config
       - $DATADIR/Audiobooks:/audiobooks
@@ -21,14 +19,16 @@ services:
       - DL_CATEGORY=abb-downloader
       - SAVE_PATH_BASE=/audiobooks
       - ABB_HOSTNAME=audiobookbay.lu
-      # - ABB_HOSTNAME='audiobookbay.is' #Default
-      # - NAV_LINK_NAME=Open Audiobook Player #Optional
-      # - NAV_LINK_URL=https://audiobooks.yourdomain.com/ #Optional
+      - INCOGNITO_MODE=true
+      - ROTATE_USER_AGENT=true
+      - DISABLE_CACHE_BUST=false
+      - ABB_TIMEOUT=8
+      # - NAV_LINK_NAME=Open Audiobook Player
+      # - NAV_LINK_URL=https://audiobooks.yourdomain.com/
     secrets:
       - rdtclient_password
       - rdtclient_username
     labels:
-      # Homepage Dashboard
       homepage.group: Media-Management
       homepage.name: audiobookbay-automated
       homepage.icon: /icons/audiobookbay.png

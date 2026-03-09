@@ -2,7 +2,7 @@
 
 # Release script for audiobookbay-automated
 # Usage: ./scripts/release.sh [version]
-# Example: ./scripts/release.sh 1.0.2
+# Example: ./scripts/release.sh 1.0.3
 
 set -e
 
@@ -17,16 +17,18 @@ NC='\033[0m' # No Color
 if [ -z "$1" ]; then
     echo -e "${RED}Error: Version number required${NC}"
     echo "Usage: $0 <version>"
-    echo "Example: $0 1.0.2"
+    echo "Example: $0 1.0.3"
     exit 1
 fi
 
 VERSION=$1
 CURRENT_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+ORIGIN_URL=$(git remote get-url origin 2>/dev/null || true)
+REPO_PATH=$(echo "$ORIGIN_URL" | sed -E 's#(git@github.com:|https://github.com/)##' | sed -E 's#\.git$##')
 
 # Validate version format (semantic versioning)
 if ! [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo -e "${RED}Error: Version must follow semantic versioning (e.g., 1.0.2)${NC}"
+    echo -e "${RED}Error: Version must follow semantic versioning (e.g., 1.0.3)${NC}"
     exit 1
 fi
 
@@ -65,7 +67,11 @@ echo -e "${GREEN}✓ Created and pushed tag v$VERSION${NC}"
 
 echo -e "${BLUE}🎉 Release $VERSION created successfully!${NC}"
 echo -e "${YELLOW}📋 Next steps:${NC}"
-echo "1. Go to https://github.com/zprough/audiobookbay-automated/releases"
+if [ -n "$REPO_PATH" ]; then
+    echo "1. Go to https://github.com/$REPO_PATH/releases"
+else
+    echo "1. Go to your GitHub repository releases page"
+fi
 echo "2. Create a new release from tag v$VERSION"
 echo "3. Add release notes describing changes"
 echo "4. Publish the release to trigger container build"
