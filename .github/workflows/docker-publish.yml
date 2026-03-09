@@ -6,6 +6,7 @@ on:
       - main
     tags:
       - 'v*.*.*'  # Trigger on version tags like v1.0.0
+      - '*.*.*'   # Also allow plain tags like 1.0.0
 
 permissions:
   contents: read
