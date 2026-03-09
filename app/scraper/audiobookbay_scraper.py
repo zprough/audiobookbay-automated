@@ -53,6 +53,10 @@ ABB_DNS_BYPASS: bool = os.getenv("ABB_DNS_BYPASS", "true").lower() in {"1", "tru
 _ABB_DNS_SERVERS_RAW: str = os.getenv("ABB_DNS_SERVERS", "1.1.1.1,8.8.8.8")
 ABB_DNS_SERVERS: List[str] = [s.strip() for s in _ABB_DNS_SERVERS_RAW.split(",") if s.strip()]
 ABB_DNS_LIFETIME: float = float(os.getenv("ABB_DNS_LIFETIME", "2.5"))
+ABB_DOH_ENABLED: bool = os.getenv("ABB_DOH_ENABLED", "true").lower() in {"1", "true", "yes", "on"}
+_ABB_DOH_PROVIDERS_RAW: str = os.getenv("ABB_DOH_PROVIDERS", "cloudflare,google")
+ABB_DOH_PROVIDERS: List[str] = [p.strip().lower() for p in _ABB_DOH_PROVIDERS_RAW.split(",") if p.strip()]
+ABB_DOH_TIMEOUT: float = float(os.getenv("ABB_DOH_TIMEOUT", "4"))
 
 # Session that supports TLS SNI via Host header while connecting to resolved IPs.
 _ABB_SESSION = requests.Session()
@@ -77,11 +81,71 @@ def _is_abb_hostname(hostname: str) -> bool:
 @lru_cache(maxsize=256)
 def _resolve_abb_hostname(hostname: str) -> Tuple[str, ...]:
     """Resolve an ABB hostname using explicit resolvers (no system DNS)."""
+    if ABB_DOH_ENABLED:
+        try:
+            return _resolve_abb_hostname_doh(hostname)
+        except requests.exceptions.RequestException as doh_exc:
+            print(f"[SCRAPER] DoH resolution failed for {hostname}, falling back to resolver nameservers: {doh_exc}")
+
     answers = _ABB_RESOLVER.resolve(hostname, "A")
     ips = tuple(str(answer) for answer in answers)
     if not ips:
         raise requests.exceptions.RequestException(f"No A records found for {hostname}")
     return ips
+
+
+def _resolve_abb_hostname_doh(hostname: str) -> Tuple[str, ...]:
+    """Resolve ABB hostname using DNS-over-HTTPS providers (bypasses router DNS)."""
+    provider_endpoints = {
+        "cloudflare": ("https://cloudflare-dns.com/dns-query", {"Accept": "application/dns-json"}),
+        "google": ("https://dns.google/resolve", {}),
+    }
+
+    last_error: Optional[Exception] = None
+
+    for provider in ABB_DOH_PROVIDERS or ["cloudflare", "google"]:
+        endpoint = provider_endpoints.get(provider)
+        if not endpoint:
+            continue
+
+        url, headers = endpoint
+        try:
+            response = requests.get(
+                url,
+                params={"name": hostname, "type": "A"},
+                headers=headers,
+                timeout=ABB_DOH_TIMEOUT,
+            )
+            if response.status_code != 200:
+                last_error = requests.exceptions.RequestException(
+                    f"DoH provider {provider} returned HTTP {response.status_code}"
+                )
+                continue
+
+            payload = response.json()
+            answers = payload.get("Answer", [])
+            ips: List[str] = []
+            for answer in answers:
+                if answer.get("type") == 1 and answer.get("data"):
+                    ip = str(answer["data"]).strip()
+                    if ip and ip not in ips:
+                        ips.append(ip)
+
+            if ips:
+                return tuple(ips)
+
+            last_error = requests.exceptions.RequestException(
+                f"DoH provider {provider} returned no A records for {hostname}"
+            )
+        except (requests.exceptions.RequestException, ValueError) as exc:
+            last_error = exc
+            continue
+
+    if last_error:
+        raise requests.exceptions.RequestException(
+            f"All DoH providers failed for {hostname}"
+        ) from last_error
+    raise requests.exceptions.RequestException(f"No valid DoH providers configured for {hostname}")
 
 
 def _replace_url_hostname_with_ip(url: str, ip_address: str) -> str:
@@ -105,7 +169,13 @@ def _abb_request(
     if not ABB_DNS_BYPASS or not _is_abb_hostname(hostname):
         return requests.request(method, url, headers=headers, timeout=timeout)
 
-    resolved_ips = _resolve_abb_hostname(hostname)
+    try:
+        resolved_ips = _resolve_abb_hostname(hostname)
+    except requests.exceptions.RequestException as dns_exc:
+        # Fallback: if custom resolver path fails, try normal system DNS request.
+        print(f"[SCRAPER] ABB DNS bypass resolution failed for {hostname}, falling back to system DNS: {dns_exc}")
+        return requests.request(method, url, headers=headers, timeout=timeout)
+
     request_headers = dict(headers or {})
     request_headers["Host"] = hostname
 
@@ -118,11 +188,16 @@ def _abb_request(
             last_error = exc
             continue
 
-    if last_error:
-        raise requests.exceptions.RequestException(
-            f"Failed ABB request via direct DNS-resolved IPs ({hostname})"
-        ) from last_error
-    raise requests.exceptions.RequestException(f"Failed ABB request for {hostname}")
+    # Fallback: if direct-IP attempts all fail, retry with normal system DNS.
+    try:
+        print(f"[SCRAPER] ABB direct-IP requests failed for {hostname}, retrying via system DNS")
+        return requests.request(method, url, headers=headers, timeout=timeout)
+    except requests.exceptions.RequestException as sys_exc:
+        if last_error:
+            raise requests.exceptions.RequestException(
+                f"Failed ABB request via direct DNS-resolved IPs and system DNS ({hostname})"
+            ) from last_error
+        raise requests.exceptions.RequestException(f"Failed ABB request for {hostname}") from sys_exc
 
 # Cache the selected working mirror for the life of the process. If it fails mid-run, we will clear cache.
 _ACTIVE_MIRROR: Optional[str] = None
@@ -258,9 +333,10 @@ def _with_mirror_retry(fn: Callable[[str], Any]) -> Any:
         try:
             # Optimistically set active mirror; if probe fails we'll move on.
             _set_active_mirror(host)
-            if not _probe_mirror(host):
-                tried.append(host)
-                continue
+            probe_ok = _probe_mirror(host)
+            if not probe_ok:
+                # Some mirrors block homepage probes while search endpoints still work.
+                print(f"[SCRAPER] Mirror probe failed for {host}, attempting request anyway")
             result = fn(host)
             return result
         except requests.exceptions.RequestException as e:
