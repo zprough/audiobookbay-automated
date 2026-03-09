@@ -44,11 +44,11 @@
             English Only
         </label>
         <label class="filter-label">
-            <input type="checkbox" id="fullCastInclude" onchange="applyFilters()">
+            <input type="checkbox" id="fullCastInclude" onchange="applyFilters('fullCastInclude')">
             Include Full Cast
         </label>
         <label class="filter-label">
-            <input type="checkbox" id="fullCastExclude" onchange="applyFilters()">
+            <input type="checkbox" id="fullCastExclude" onchange="applyFilters('fullCastExclude')">
             Exclude Full Cast
         </label>
         <button type="button" id="clearFilters" onclick="clearAllFilters()">Clear Filters</button>
@@ -62,6 +62,7 @@
         <!-- Results will be populated by JavaScript -->
     </tbody>
 </table>
+<div id="books-data" data-books='{{ books|default([], true)|tojson|forceescape }}' style="display:none;"></div>
 
 <script>
     function showLoadingSpinner() {
@@ -140,28 +141,31 @@
     }
 
     // Store all books data for filtering
-    let allBooks = [
-        {% for book in books %}
-        {
-            title: "{{ book.title|e }}",
-            cover: "{{ book.cover|e }}",
-            link: "{{ book.link|e }}",
-            language: "{{ book.language|e if book.language else '' }}",
-            format: "{{ book.format|e if book.format else '' }}",
-            categories: {{ book.categories|tojson if book.categories else '[]' }},
-            keywords: {{ book.keywords|tojson if book.keywords else '[]' }}
-        }{% if not loop.last %},{% endif %}
-        {% endfor %}
-    ];
+    const booksDataEl = document.getElementById('books-data');
+    let rawBooks = [];
+    try {
+        rawBooks = JSON.parse((booksDataEl && booksDataEl.dataset && booksDataEl.dataset.books) || '[]');
+    } catch (e) {
+        rawBooks = [];
+    }
+    let allBooks = rawBooks.map(book => ({
+        title: book.title || '',
+        cover: book.cover || '',
+        link: book.link || '',
+        language: book.language || '',
+        format: book.format || '',
+        categories: Array.isArray(book.categories) ? book.categories : [],
+        keywords: Array.isArray(book.keywords) ? book.keywords : []
+    }));
 
-    function applyFilters() {
+    function applyFilters(triggerId = null) {
         const englishFilter = document.getElementById('englishFilter').checked;
         const fullCastInclude = document.getElementById('fullCastInclude').checked;
         const fullCastExclude = document.getElementById('fullCastExclude').checked;
         
         // Prevent conflicting filters
         if (fullCastInclude && fullCastExclude) {
-            if (event.target.id === 'fullCastInclude') {
+            if (triggerId === 'fullCastInclude') {
                 document.getElementById('fullCastExclude').checked = false;
             } else {
                 document.getElementById('fullCastInclude').checked = false;
