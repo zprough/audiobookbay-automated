@@ -187,22 +187,24 @@ def search():
         Rendered search.html template with search results or errors
     """
     books = []
+    current_query = ''
     try:
         if request.method == 'POST':  # Form submitted
             query = request.form.get('query', '').strip()
             if query:  # Only search if the query is not empty
                 # Convert to lowercase for consistency
                 query = query.lower()
+                current_query = query
                 books = search_audiobookbay(query)
                 print(f"[FLASK] Search completed: '{query}' returned {len(books)} results")
             else:
                 print("[FLASK] Empty search query received")
-                
-        return render_template('search.html', books=books)
+
+        return render_template('search.html', books=books, query=current_query)
         
     except Exception as e:
         print(f"[FLASK] Search error: {e}")
-        return render_template('search.html', books=books, error=f"Search failed: {str(e)}")
+        return render_template('search.html', books=books, query=current_query, error=f"Search failed: {str(e)}")
 
 @app.route('/send', methods=['POST'])
 def send():

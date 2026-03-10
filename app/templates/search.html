@@ -12,7 +12,7 @@
     <h1>Search AudiobookBay</h1>
 </div>
 <form method="post" class="search-container" onsubmit="showLoadingSpinner()">
-    <input type="text" name="query" placeholder="Enter book name" class="search-bar" required>
+    <input type="text" name="query" placeholder="Enter book name" class="search-bar" value="{{ query or '' }}" required>
 <button type="submit" class="search-button">
     <span class="button-text">Search</span>
     <div class="button-spinner" id="button-spinner" style="display: none;">
@@ -35,8 +35,7 @@
 {% endif %}
 
 <!-- Filter Controls -->
-{% if books %}
-<div class="filter-container">
+<div class="filter-container" id="filterContainer" {% if not books %}style="display:none;"{% endif %}>
     <h3>Filters</h3>
     <div class="filter-controls">
         <label class="filter-label">
@@ -55,7 +54,6 @@
     </div>
     <div id="filterStatus" class="filter-status"></div>
 </div>
-{% endif %}
 
 <table id="resultsTable">
     <tbody>
@@ -142,6 +140,10 @@
 
     // Store all books data for filtering
     const booksDataEl = document.getElementById('books-data');
+    const filterContainer = document.getElementById('filterContainer');
+    const searchForm = document.querySelector('.search-container');
+    const searchInput = document.querySelector('.search-bar');
+    const SEARCH_STATE_KEY = 'abb_search_state';
     let rawBooks = [];
     try {
         rawBooks = JSON.parse((booksDataEl && booksDataEl.dataset && booksDataEl.dataset.books) || '[]');
@@ -157,6 +159,33 @@
         categories: Array.isArray(book.categories) ? book.categories : [],
         keywords: Array.isArray(book.keywords) ? book.keywords : []
     }));
+
+    function saveSearchState(queryText, books) {
+        try {
+            sessionStorage.setItem(SEARCH_STATE_KEY, JSON.stringify({
+                query: queryText || '',
+                books: Array.isArray(books) ? books : []
+            }));
+        } catch (e) {
+            // no-op
+        }
+    }
+
+    function loadSearchState() {
+        try {
+            const raw = sessionStorage.getItem(SEARCH_STATE_KEY);
+            if (!raw) {
+                return null;
+            }
+            const parsed = JSON.parse(raw);
+            if (!parsed || !Array.isArray(parsed.books)) {
+                return null;
+            }
+            return parsed;
+        } catch (e) {
+            return null;
+        }
+    }
 
     function applyFilters(triggerId = null) {
         const englishFilter = document.getElementById('englishFilter').checked;
@@ -330,10 +359,40 @@
     // Initialize the table with all results on page load
     document.addEventListener('DOMContentLoaded', function() {
         if (allBooks.length > 0) {
+            filterContainer.style.display = '';
             updateResultsTable(allBooks);
             updateFilterStatus(allBooks.length, allBooks.length);
+            saveSearchState(searchInput ? searchInput.value.trim() : '', allBooks);
+            return;
+        }
+
+        const cachedState = loadSearchState();
+        if (cachedState && cachedState.books.length > 0) {
+            allBooks = cachedState.books.map(book => ({
+                title: book.title || '',
+                cover: book.cover || '',
+                link: book.link || '',
+                language: book.language || '',
+                format: book.format || '',
+                categories: Array.isArray(book.categories) ? book.categories : [],
+                keywords: Array.isArray(book.keywords) ? book.keywords : []
+            }));
+            if (searchInput && !searchInput.value) {
+                searchInput.value = cachedState.query || '';
+            }
+            filterContainer.style.display = '';
+            updateResultsTable(allBooks);
+            updateFilterStatus(allBooks.length, allBooks.length);
+        } else if (filterContainer) {
+            filterContainer.style.display = 'none';
         }
     });
+
+    if (searchForm) {
+        searchForm.addEventListener('submit', function() {
+            sessionStorage.removeItem(SEARCH_STATE_KEY);
+        });
+    }
 
     // Handle window resize to update table layout
     window.addEventListener('resize', function() {
