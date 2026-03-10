@@ -54,8 +54,8 @@
                 </select>
                 <small>Type of torrent client to use for downloads</small>
             </div>
-            
-            <div class="form-row">
+
+            <div class="client-group client-group--torrent form-row" data-client-group="torrent">
                 <div class="form-group">
                     <label for="DL_HOST">Download Client Host</label>
                     <input type="text" id="DL_HOST" name="DL_HOST" 
@@ -72,8 +72,8 @@
                     <small>Port number (1-65535)</small>
                 </div>
             </div>
-            
-            <div class="form-row">
+
+            <div class="client-group client-group--torrent form-row" data-client-group="torrent">
                 <div class="form-group">
                     <label for="DL_USERNAME">Download Client Username</label>
                     <input type="text" id="DL_USERNAME" name="DL_USERNAME" 
@@ -97,7 +97,7 @@
             <h2>⚙️ Advanced Settings</h2>
             <p class="section-description">Fine-tune the application behavior</p>
             
-            <div class="form-row">
+            <div class="client-group client-group--all form-row" data-client-group="all">
                 <div class="form-group">
                     <label for="PAGE_LIMIT">Search Page Limit</label>
                     <input type="number" id="PAGE_LIMIT" name="PAGE_LIMIT" 
@@ -106,7 +106,7 @@
                     <small>Maximum pages to search (1-20)</small>
                 </div>
                 
-                <div class="form-group">
+                <div class="client-group client-group--torrent form-group" data-client-group="torrent">
                     <label for="DL_CATEGORY">Download Category</label>
                     <input type="text" id="DL_CATEGORY" name="DL_CATEGORY" 
                            value="{{ settings.DL_CATEGORY or '' }}" 
@@ -114,8 +114,8 @@
                     <small>Category for organizing downloads</small>
                 </div>
             </div>
-            
-            <div class="form-group">
+
+            <div class="client-group client-group--torrent form-group" data-client-group="torrent">
                 <label for="SAVE_PATH_BASE">Download Save Path</label>
                 <input type="text" id="SAVE_PATH_BASE" name="SAVE_PATH_BASE" 
                        value="{{ settings.SAVE_PATH_BASE or '' }}" 
@@ -123,16 +123,58 @@
                 <small>Base directory for saving downloads (absolute path)</small>
             </div>
 
-            <div class="form-group">
+            <div class="client-group client-group--torrent form-group" data-client-group="torrent">
                 <label for="DL_URL">Download Client URL (optional)</label>
                 <input type="text" id="DL_URL" name="DL_URL" 
                        value="{{ settings.DL_URL or '' }}" 
                        placeholder="http://192.168.1.100:8112">
                 <small>Optional complete URL (used by Deluge or as override)</small>
             </div>
+
+            <div class="client-group client-group--realdebrid form-group" data-client-group="realdebrid">
+                <label for="RD_DOWNLOADS_DIR">Real-Debrid Download Directory</label>
+                <input type="text" id="RD_DOWNLOADS_DIR" name="RD_DOWNLOADS_DIR"
+                       value="{{ settings.RD_DOWNLOADS_DIR or '/downloads' }}"
+                       placeholder="/downloads">
+                <small>Resolved files are downloaded directly into this path</small>
+            </div>
+
+            <div class="client-group client-group--realdebrid form-row" data-client-group="realdebrid">
+                <div class="form-group">
+                    <label for="RD_MIN_FILE_SIZE_MB">Minimum File Size (MB)</label>
+                    <input type="number" id="RD_MIN_FILE_SIZE_MB" name="RD_MIN_FILE_SIZE_MB"
+                           value="{{ settings.RD_MIN_FILE_SIZE_MB or 25 }}"
+                           min="0" step="0.1" placeholder="25">
+                    <small>Files smaller than this are skipped during selection</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="RD_POLL_INTERVAL_SEC">Status Poll Interval (sec)</label>
+                    <input type="number" id="RD_POLL_INTERVAL_SEC" name="RD_POLL_INTERVAL_SEC"
+                           value="{{ settings.RD_POLL_INTERVAL_SEC or 5 }}"
+                           min="2" step="1" placeholder="5">
+                    <small>Polling interval while waiting for RD torrent state changes</small>
+                </div>
+            </div>
+
+            <div class="client-group client-group--realdebrid form-group" data-client-group="realdebrid">
+                <label for="RD_EXCLUDE_EXTENSIONS">Excluded Extensions (comma separated)</label>
+                <input type="text" id="RD_EXCLUDE_EXTENSIONS" name="RD_EXCLUDE_EXTENSIONS"
+                       value="{{ settings.RD_EXCLUDE_EXTENSIONS or '.nfo,.txt,.jpg,.jpeg,.png' }}"
+                       placeholder=".nfo,.txt,.jpg,.jpeg,.png">
+                <small>Extensions to skip when auto-selecting files</small>
+            </div>
+
+            <div class="client-group client-group--realdebrid form-group" data-client-group="realdebrid">
+                <label for="RD_MAX_WAIT_SEC">Max Wait Time (sec)</label>
+                <input type="number" id="RD_MAX_WAIT_SEC" name="RD_MAX_WAIT_SEC"
+                       value="{{ settings.RD_MAX_WAIT_SEC or 900 }}"
+                       min="30" step="10" placeholder="900">
+                <small>Maximum wait time for Real-Debrid torrent readiness/completion</small>
+            </div>
         </div>
 
-        <div class="settings-section">
+        <div class="settings-section client-group client-group--realdebrid" data-client-group="realdebrid">
             <h2>🔐 Real-Debrid Settings</h2>
             <p class="section-description">Authorize Real-Debrid and control file selection/download behavior</p>
 
@@ -155,7 +197,7 @@
                 </div>
             </div>
 
-            <div class="form-group">
+            <div class="form-group rd-auth-group rd-auth-group--token" data-rd-auth-group="token">
                 <label for="RD_API_TOKEN">Real-Debrid API Token (token mode)</label>
                 <input type="password" id="RD_API_TOKEN" name="RD_API_TOKEN"
                        value="{{ settings.RD_API_TOKEN or '' }}"
@@ -163,7 +205,7 @@
                 <small>Used only when Auth Mode is set to Static API Token</small>
             </div>
 
-            <div class="form-row">
+            <div class="form-row rd-auth-group rd-auth-group--oauth" data-rd-auth-group="oauth">
                 <div class="form-group">
                     <label for="RD_CLIENT_ID">OAuth Client ID</label>
                     <input type="text" id="RD_CLIENT_ID" name="RD_CLIENT_ID"
@@ -178,7 +220,7 @@
                 </div>
             </div>
 
-            <div class="form-row">
+            <div class="form-row rd-auth-group rd-auth-group--oauth" data-rd-auth-group="oauth">
                 <div class="form-group">
                     <label for="RD_ACCESS_TOKEN">OAuth Access Token</label>
                     <input type="password" id="RD_ACCESS_TOKEN" name="RD_ACCESS_TOKEN"
@@ -193,55 +235,12 @@
                 </div>
             </div>
 
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="RD_DOWNLOADS_DIR">Real-Debrid Download Directory</label>
-                    <input type="text" id="RD_DOWNLOADS_DIR" name="RD_DOWNLOADS_DIR"
-                           value="{{ settings.RD_DOWNLOADS_DIR or '/downloads' }}"
-                           placeholder="/downloads">
-                    <small>Resolved files are downloaded directly into this path</small>
-                </div>
-
-                <div class="form-group">
-                    <label for="RD_MIN_FILE_SIZE_MB">Minimum File Size (MB)</label>
-                    <input type="number" id="RD_MIN_FILE_SIZE_MB" name="RD_MIN_FILE_SIZE_MB"
-                           value="{{ settings.RD_MIN_FILE_SIZE_MB or 25 }}"
-                           min="0" step="0.1" placeholder="25">
-                    <small>Files smaller than this are skipped during selection</small>
-                </div>
-            </div>
-
-            <div class="form-row">
-                <div class="form-group">
-                    <label for="RD_EXCLUDE_EXTENSIONS">Excluded Extensions (comma separated)</label>
-                    <input type="text" id="RD_EXCLUDE_EXTENSIONS" name="RD_EXCLUDE_EXTENSIONS"
-                           value="{{ settings.RD_EXCLUDE_EXTENSIONS or '.nfo,.txt,.jpg,.jpeg,.png' }}"
-                           placeholder=".nfo,.txt,.jpg,.jpeg,.png">
-                    <small>Extensions to skip when auto-selecting files</small>
-                </div>
-                <div class="form-group">
-                    <label for="RD_POLL_INTERVAL_SEC">Status Poll Interval (sec)</label>
-                    <input type="number" id="RD_POLL_INTERVAL_SEC" name="RD_POLL_INTERVAL_SEC"
-                           value="{{ settings.RD_POLL_INTERVAL_SEC or 5 }}"
-                           min="2" step="1" placeholder="5">
-                    <small>Polling interval while waiting for RD torrent state changes</small>
-                </div>
-            </div>
-
-            <div class="form-group">
-                <label for="RD_MAX_WAIT_SEC">Max Wait Time (sec)</label>
-                <input type="number" id="RD_MAX_WAIT_SEC" name="RD_MAX_WAIT_SEC"
-                       value="{{ settings.RD_MAX_WAIT_SEC or 900 }}"
-                       min="30" step="10" placeholder="900">
-                <small>Maximum wait time for Real-Debrid torrent readiness/completion</small>
-            </div>
-
-            <div class="form-actions">
+            <div class="form-actions rd-auth-group rd-auth-group--oauth" data-rd-auth-group="oauth">
                 <button type="button" class="btn-secondary" id="rdStartAuthBtn">🔑 Start Real-Debrid OAuth</button>
                 <button type="button" class="btn-secondary" id="rdCompleteAuthBtn">✅ Complete OAuth</button>
             </div>
 
-            <div class="settings-info" id="rdDeviceInfo" style="display:none; margin-top: 1rem;">
+            <div class="settings-info rd-auth-group rd-auth-group--oauth" id="rdDeviceInfo" data-rd-auth-group="oauth" style="display:none; margin-top: 1rem;">
                 <h3>Real-Debrid Device Authorization</h3>
                 <p><strong>Verification URL:</strong> <a id="rdVerificationUrl" href="#" target="_blank" rel="noopener noreferrer"></a></p>
                 <p><strong>User Code:</strong> <span id="rdUserCode"></span></p>
@@ -400,6 +399,33 @@ document.addEventListener('DOMContentLoaded', function() {
     const rdUserCode = document.getElementById('rdUserCode');
     const rdDeviceCode = document.getElementById('rdDeviceCode');
     const rdBaseClientId = document.getElementById('RD_BASE_CLIENT_ID');
+    const downloadClientSelect = document.getElementById('DOWNLOAD_CLIENT');
+    const rdAuthModeSelect = document.getElementById('RD_AUTH_MODE');
+    const clientGroups = document.querySelectorAll('[data-client-group]');
+    const rdAuthGroups = document.querySelectorAll('[data-rd-auth-group]');
+
+    function setElementVisibility(element, isVisible) {
+        element.style.display = isVisible ? '' : 'none';
+    }
+
+    function applyClientVisibility() {
+        const selectedClient = (downloadClientSelect?.value || '').toLowerCase();
+        clientGroups.forEach(group => {
+            const target = group.getAttribute('data-client-group');
+            const shouldShow = target === 'all'
+                || (target === 'realdebrid' && selectedClient === 'realdebrid')
+                || (target === 'torrent' && ['qbittorrent', 'transmission', 'deluge'].includes(selectedClient));
+            setElementVisibility(group, shouldShow);
+        });
+    }
+
+    function applyRdAuthVisibility() {
+        const authMode = (rdAuthModeSelect?.value || 'oauth').toLowerCase();
+        rdAuthGroups.forEach(group => {
+            const target = group.getAttribute('data-rd-auth-group');
+            setElementVisibility(group, target === authMode);
+        });
+    }
 
     async function startRdOauth() {
         try {
@@ -481,6 +507,17 @@ document.addEventListener('DOMContentLoaded', function() {
     if (testClientBtn) {
         testClientBtn.addEventListener('click', testDownloadClient);
     }
+
+    if (downloadClientSelect) {
+        downloadClientSelect.addEventListener('change', applyClientVisibility);
+    }
+
+    if (rdAuthModeSelect) {
+        rdAuthModeSelect.addEventListener('change', applyRdAuthVisibility);
+    }
+
+    applyClientVisibility();
+    applyRdAuthVisibility();
 });
 </script>
 {% endblock %}

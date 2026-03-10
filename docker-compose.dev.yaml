@@ -1,32 +1,49 @@
-version: '3.8'
-
 services:
-  audiobookbay-automated-dev:
-    # Build from local Dockerfile instead of pulling from registry
-    build: .
+  warp:
+    image: caomingjun/warp:latest
+    container_name: warp-dev
+    restart: unless-stopped
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
     ports:
       - "${DEV_PORT:-5079}:${DEV_PORT:-5079}"
-    container_name: audiobookbay-automated-dev
+    volumes:
+      - ${DEV_DOCKERDIR:-./.dev-data}/appdata/warp:/var/lib/cloudflare-warp
+
+  audiobookbay-downloader-dev:
+    image: ghcr.io/zprough/audiobookbay-automated:dev-local
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: audiobookbay-downloader-dev
+    restart: unless-stopped
+    network_mode: service:warp
+    depends_on:
+      - warp
+    volumes:
+      - ${DEV_DOCKERDIR:-./.dev-data}/appdata/audiobookbay-automated:/config
+      - ${DEV_DATADIR:-./.dev-data}/Audiobooks:/audiobooks
+      - ${DEV_DATADIR:-./.dev-data}/audiobooks_need_processed:/downloads
+      - ${DEV_SECRETS_DIR:-./secrets}:/run/secrets:ro
+    env_file:
+      - .env
     environment:
       - FLASK_DEBUG=true
       - DEV_PORT=${DEV_PORT:-5079}
-      - DOWNLOAD_CLIENT=${DOWNLOAD_CLIENT}
+      - DOWNLOAD_CLIENT=${DOWNLOAD_CLIENT:-qbittorrent}
+      - DL_SCHEME=${DL_SCHEME:-http}
       - DL_HOST=${DL_HOST}
       - DL_PORT=${DL_PORT}
       - DL_USERNAME=${DL_USERNAME}
       - DL_PASSWORD=${DL_PASSWORD}
-      - DL_CATEGORY=${DL_CATEGORY}
-      - SAVE_PATH_BASE=${SAVE_PATH_BASE}
-      # - NAV_LINK_NAME=${NAV_LINK_NAME}
-      # - NAV_LINK_URL=${NAV_LINK_URL}
-      - ABB_HOSTNAME=${ABB_HOSTNAME}
-      - PAGE_LIMIT=${PAGE_LIMIT}
-    volumes:
-      # Mount local files for live editing
-      - ./app/templates:/app/templates
-      - ./app/static:/app/static
-      - ./app/app.py:/app/app.py
-    env_file:
-      - .env
-    # Restart the container when files change (optional)
-    restart: unless-stopped
+      - DL_CATEGORY=${DL_CATEGORY:-abb-downloader-dev}
+      - SAVE_PATH_BASE=${SAVE_PATH_BASE:-/audiobooks}
+      - ABB_HOSTNAME=${ABB_HOSTNAME:-audiobookbay.lu}
+      - INCOGNITO_MODE=${INCOGNITO_MODE:-true}
+      - ROTATE_USER_AGENT=${ROTATE_USER_AGENT:-true}
+      - DISABLE_CACHE_BUST=${DISABLE_CACHE_BUST:-false}
+      - ABB_TIMEOUT=${ABB_TIMEOUT:-8}
+      - NAV_LINK_NAME=${NAV_LINK_NAME}
+      - NAV_LINK_URL=${NAV_LINK_URL}

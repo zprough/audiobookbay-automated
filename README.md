@@ -160,6 +160,24 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
    python app.py
    ```
 
+### Prod-Like Dev Container Test (Before Release)
+
+Use this when you want to validate branch changes in Docker before tagging/releasing (for example before `1.0.4`).
+
+1. Ensure your `.env` has your test values (or set `DL_USERNAME` / `DL_PASSWORD` to `/run/secrets/...` paths and place files in `./secrets`).
+2. Start the dev container:
+  ```bash
+  docker compose -f docker-compose.dev.yaml up --build -d
+  ```
+3. View logs:
+  ```bash
+  docker logs -f audiobookbay-downloader-dev
+  ```
+4. Stop when finished:
+  ```bash
+  docker compose -f docker-compose.dev.yaml down
+  ```
+
 ---
 
 ## Notes

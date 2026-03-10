@@ -178,3 +178,7 @@ cython_debug/
 *.vsix
 .vscode/settings.json
 .python-version
+
+# Local Docker/dev runtime data
+.dev-data/
+secrets/
