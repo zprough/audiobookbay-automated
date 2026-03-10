@@ -46,11 +46,10 @@
             <div class="form-group">
                 <label for="DOWNLOAD_CLIENT">Download Client Type</label>
                 <select id="DOWNLOAD_CLIENT" name="DOWNLOAD_CLIENT">
-                    <option value="">-- Select Client --</option>
                     <option value="qbittorrent" {% if settings.DOWNLOAD_CLIENT == 'qbittorrent' %}selected{% endif %}>qBittorrent</option>
                     <option value="transmission" {% if settings.DOWNLOAD_CLIENT == 'transmission' %}selected{% endif %}>Transmission</option>
                     <option value="deluge" {% if settings.DOWNLOAD_CLIENT == 'deluge' %}selected{% endif %}>Deluge</option>
-                    <option value="realdebrid" {% if settings.DOWNLOAD_CLIENT == 'realdebrid' %}selected{% endif %}>Real-Debrid</option>
+                    <option value="realdebrid" {% if settings.DOWNLOAD_CLIENT in ['realdebrid', 'real-debrid', None, ''] %}selected{% endif %}>Real-Debrid</option>
                 </select>
                 <small>Type of torrent client to use for downloads</small>
             </div>
@@ -404,12 +403,21 @@ document.addEventListener('DOMContentLoaded', function() {
     const clientGroups = document.querySelectorAll('[data-client-group]');
     const rdAuthGroups = document.querySelectorAll('[data-rd-auth-group]');
 
+    function normalizeClientType(value) {
+        const normalizedValue = (value || '').toLowerCase().trim();
+        if (normalizedValue === 'real-debrid') {
+            return 'realdebrid';
+        }
+        return normalizedValue;
+    }
+
     function setElementVisibility(element, isVisible) {
+        element.classList.toggle('is-hidden', !isVisible);
         element.style.display = isVisible ? '' : 'none';
     }
 
     function applyClientVisibility() {
-        const selectedClient = (downloadClientSelect?.value || '').toLowerCase();
+        const selectedClient = normalizeClientType(downloadClientSelect ? downloadClientSelect.value : '');
         clientGroups.forEach(group => {
             const target = group.getAttribute('data-client-group');
             const shouldShow = target === 'all'
@@ -509,6 +517,12 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     if (downloadClientSelect) {
+        const currentClient = normalizeClientType(downloadClientSelect.value);
+        if (!currentClient) {
+            downloadClientSelect.value = 'realdebrid';
+        } else if (currentClient !== downloadClientSelect.value) {
+            downloadClientSelect.value = currentClient;
+        }
         downloadClientSelect.addEventListener('change', applyClientVisibility);
     }
 

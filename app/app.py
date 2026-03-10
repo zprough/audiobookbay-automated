@@ -279,20 +279,19 @@ def status():
         Rendered status.html template with torrent list or error message
     """
     try:
-        torrents = get_torrents()
-        if _is_realdebrid_client():
-            torrents = _build_rd_job_status_rows() + torrents
+        rd_jobs = _build_rd_job_status_rows() if _is_realdebrid_client() else []
+        torrents = rd_jobs + get_torrents()
         print(f"[FLASK] Status page: showing {len(torrents)} torrents")
         return render_template('status.html', torrents=torrents)
         
     except DownloadClientError as e:
         print(f"[FLASK] Download client error on status: {e}")
-        error_message = f"Download client error: {str(e)}"
-        return render_template('status.html', torrents=[], error=error_message)
+        fallback_torrents = _build_rd_job_status_rows() if _is_realdebrid_client() else []
+        return render_template('status.html', torrents=fallback_torrents)
         
     except Exception as e:
         print(f"[FLASK] Status error: {e}")
-        error_message = f"Failed to fetch torrent status: {str(e)}"
+        error_message = "Status is temporarily unavailable."
         return render_template('status.html', torrents=[], error=error_message)
 
 
@@ -385,7 +384,7 @@ def _get_current_settings() -> Dict[str, Optional[str]]:
     return {
         'ABB_HOSTNAME': os.getenv('ABB_HOSTNAME'),
         'PAGE_LIMIT': os.getenv('PAGE_LIMIT'),
-        'DOWNLOAD_CLIENT': os.getenv('DOWNLOAD_CLIENT'),
+        'DOWNLOAD_CLIENT': os.getenv('DOWNLOAD_CLIENT', 'realdebrid'),
         'DL_HOST': os.getenv('DL_HOST'),
         'DL_PORT': os.getenv('DL_PORT'),
         'DL_URL': os.getenv('DL_URL'),
