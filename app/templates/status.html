@@ -13,6 +13,9 @@
 {% if error %}
 <div class="error-message">{{ error }}</div>
 {% endif %}
+{% if status_notice %}
+<div class="status-notice">{{ status_notice }}</div>
+{% endif %}
 {% if torrents %}
 <table>
     <thead>

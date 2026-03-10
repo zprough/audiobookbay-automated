@@ -5,6 +5,8 @@ Handles interactions with various torrent download clients.
 
 import os
 import time
+import json
+import threading
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 import requests
@@ -74,6 +76,8 @@ def _load_download_config() -> Dict[str, Any]:
         "RD_ACCESS_TOKEN": os.getenv("RD_ACCESS_TOKEN"),
         "RD_REFRESH_TOKEN": os.getenv("RD_REFRESH_TOKEN"),
         "RD_DOWNLOADS_DIR": os.getenv("RD_DOWNLOADS_DIR", "/downloads"),
+        "RD_APP_TAG": (os.getenv("RD_APP_TAG") or "abb-automated").strip(),
+        "RD_TRACKED_TORRENTS_FILE": os.getenv("RD_TRACKED_TORRENTS_FILE"),
         "RD_MIN_FILE_SIZE_MB": _float_env("RD_MIN_FILE_SIZE_MB", 25.0),
         "RD_EXCLUDE_EXTENSIONS": os.getenv("RD_EXCLUDE_EXTENSIONS", ".nfo,.txt,.jpg,.jpeg,.png"),
         "RD_POLL_INTERVAL_SEC": _int_env("RD_POLL_INTERVAL_SEC", 5),
@@ -366,10 +370,59 @@ class RealDebridManager(BaseDownloadClient):
         self.access_token = config["RD_ACCESS_TOKEN"]
         self.refresh_token = config["RD_REFRESH_TOKEN"]
         self.downloads_dir = config["RD_DOWNLOADS_DIR"] or "/downloads"
+        self.app_tag = config["RD_APP_TAG"] or "abb-automated"
+        tracked_file = config.get("RD_TRACKED_TORRENTS_FILE")
+        self.tracked_torrents_file = Path(tracked_file) if tracked_file else Path(self.downloads_dir) / ".abb-rd-tracked-torrents.json"
+        self._tracked_lock = threading.Lock()
         self.min_file_size_bytes = int(float(config["RD_MIN_FILE_SIZE_MB"]) * 1024 * 1024)
         self.exclude_extensions = _parse_extensions(config["RD_EXCLUDE_EXTENSIONS"])
         self.poll_interval_sec = max(2, int(config["RD_POLL_INTERVAL_SEC"]))
         self.max_wait_sec = max(30, int(config["RD_MAX_WAIT_SEC"]))
+
+    def _load_tracked_torrents(self) -> Dict[str, Any]:
+        default_payload = {"version": 1, "tags": {}}
+        if not self.tracked_torrents_file.exists():
+            return default_payload
+
+        try:
+            with open(self.tracked_torrents_file, "r", encoding="utf-8") as tracked_file:
+                data = json.load(tracked_file)
+                if not isinstance(data, dict):
+                    return default_payload
+                if "tags" not in data or not isinstance(data.get("tags"), dict):
+                    data["tags"] = {}
+                return data
+        except Exception as e:
+            print(f"[DOWNLOAD] Failed to read RD tracked torrents file: {e}")
+            return default_payload
+
+    def _save_tracked_torrents(self, payload: Dict[str, Any]) -> None:
+        self.tracked_torrents_file.parent.mkdir(parents=True, exist_ok=True)
+        with open(self.tracked_torrents_file, "w", encoding="utf-8") as tracked_file:
+            json.dump(payload, tracked_file, indent=2, sort_keys=True)
+
+    def _track_torrent(self, torrent_id: str, title: str) -> None:
+        if not torrent_id:
+            return
+
+        with self._tracked_lock:
+            payload = self._load_tracked_torrents()
+            tags = payload.setdefault("tags", {})
+            tag_entries = tags.setdefault(self.app_tag, {})
+            tag_entries[str(torrent_id)] = {
+                "title": title,
+                "added_at": int(time.time()),
+            }
+            self._save_tracked_torrents(payload)
+
+    def _get_tracked_ids(self) -> set[str]:
+        with self._tracked_lock:
+            payload = self._load_tracked_torrents()
+        tags = payload.get("tags") or {}
+        tag_entries = tags.get(self.app_tag)
+        if isinstance(tag_entries, dict):
+            return set(tag_entries.keys())
+        return set()
 
     def _refresh_access_token(self) -> str:
         if not self.client_id or not self.client_secret or not self.refresh_token:
@@ -519,6 +572,7 @@ class RealDebridManager(BaseDownloadClient):
 
     def add_torrent(self, magnet_link: str, save_path: str) -> bool:
         torrent_id = self._add_magnet(magnet_link)
+        self._track_torrent(torrent_id, Path(save_path).name)
 
         info = self._wait_for_status(
             torrent_id,
@@ -554,8 +608,16 @@ class RealDebridManager(BaseDownloadClient):
             raise DownloadClientError(f"Failed to list Real-Debrid torrents: {response.status_code} {response.text}")
 
         torrents = response.json() if response.text else []
+        tracked_ids = self._get_tracked_ids()
+        if not tracked_ids:
+            return []
+
         normalized: List[Dict[str, Any]] = []
         for torrent in torrents:
+            torrent_id = str(torrent.get("id") or "")
+            if torrent_id not in tracked_ids:
+                continue
+
             bytes_total = int(torrent.get("bytes") or 0)
             progress = float(torrent.get("progress") or 0)
             normalized.append(
@@ -683,4 +745,5 @@ def get_client_info() -> Dict[str, str]:
         'save_path_base': config["SAVE_PATH_BASE"] or 'None',
         'rd_auth_mode': config["RD_AUTH_MODE"],
         'rd_downloads_dir': config["RD_DOWNLOADS_DIR"],
+        'rd_app_tag': config["RD_APP_TAG"],
     }

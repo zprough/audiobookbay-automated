@@ -46,10 +46,10 @@
             <div class="form-group">
                 <label for="DOWNLOAD_CLIENT">Download Client Type</label>
                 <select id="DOWNLOAD_CLIENT" name="DOWNLOAD_CLIENT">
+                    <option value="realdebrid" {% if settings.DOWNLOAD_CLIENT in ['realdebrid', 'real-debrid', None, ''] %}selected{% endif %}>Real-Debrid</option>
                     <option value="qbittorrent" {% if settings.DOWNLOAD_CLIENT == 'qbittorrent' %}selected{% endif %}>qBittorrent</option>
                     <option value="transmission" {% if settings.DOWNLOAD_CLIENT == 'transmission' %}selected{% endif %}>Transmission</option>
                     <option value="deluge" {% if settings.DOWNLOAD_CLIENT == 'deluge' %}selected{% endif %}>Deluge</option>
-                    <option value="realdebrid" {% if settings.DOWNLOAD_CLIENT in ['realdebrid', 'real-debrid', None, ''] %}selected{% endif %}>Real-Debrid</option>
                 </select>
                 <small>Type of torrent client to use for downloads</small>
             </div>
@@ -92,10 +92,15 @@
         </div>
         
         <!-- Advanced Settings -->
-        <div class="settings-section">
+        <div class="settings-section settings-section--accordion" data-accordion-section>
+            <button type="button" class="section-toggle" data-accordion-toggle aria-expanded="true" aria-controls="advanced-settings-panel" aria-label="Toggle Advanced Settings">
+                <span class="section-toggle__icon" aria-hidden="true">▴</span>
+            </button>
             <h2>⚙️ Advanced Settings</h2>
+
+            <div id="advanced-settings-panel" class="accordion-panel" data-accordion-panel>
             <p class="section-description">Fine-tune the application behavior</p>
-            
+
             <div class="client-group client-group--all form-row" data-client-group="all">
                 <div class="form-group">
                     <label for="PAGE_LIMIT">Search Page Limit</label>
@@ -140,6 +145,24 @@
 
             <div class="client-group client-group--realdebrid form-row" data-client-group="realdebrid">
                 <div class="form-group">
+                    <label for="RD_APP_TAG">Real-Debrid App Tag</label>
+                    <input type="text" id="RD_APP_TAG" name="RD_APP_TAG"
+                           value="{{ settings.RD_APP_TAG or 'abb-automated' }}"
+                           placeholder="abb-automated">
+                    <small>Used to track which torrents were added by this app</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="RD_TRACKED_TORRENTS_FILE">Tracked Torrent File (optional)</label>
+                    <input type="text" id="RD_TRACKED_TORRENTS_FILE" name="RD_TRACKED_TORRENTS_FILE"
+                           value="{{ settings.RD_TRACKED_TORRENTS_FILE or '' }}"
+                           placeholder="/downloads/.abb-rd-tracked-torrents.json">
+                    <small>Override where the Real-Debrid tracked torrent IDs are stored</small>
+                </div>
+            </div>
+
+            <div class="client-group client-group--realdebrid form-row" data-client-group="realdebrid">
+                <div class="form-group">
                     <label for="RD_MIN_FILE_SIZE_MB">Minimum File Size (MB)</label>
                     <input type="number" id="RD_MIN_FILE_SIZE_MB" name="RD_MIN_FILE_SIZE_MB"
                            value="{{ settings.RD_MIN_FILE_SIZE_MB or 25 }}"
@@ -171,10 +194,16 @@
                        min="30" step="10" placeholder="900">
                 <small>Maximum wait time for Real-Debrid torrent readiness/completion</small>
             </div>
+            </div>
         </div>
 
-        <div class="settings-section client-group client-group--realdebrid" data-client-group="realdebrid">
+        <div class="settings-section settings-section--accordion client-group client-group--realdebrid" data-client-group="realdebrid" data-accordion-section>
+            <button type="button" class="section-toggle" data-accordion-toggle aria-expanded="true" aria-controls="realdebrid-settings-panel" aria-label="Toggle Real-Debrid Settings">
+                <span class="section-toggle__icon" aria-hidden="true">▴</span>
+            </button>
             <h2>🔐 Real-Debrid Settings</h2>
+
+            <div id="realdebrid-settings-panel" class="accordion-panel" data-accordion-panel>
             <p class="section-description">Authorize Real-Debrid and control file selection/download behavior</p>
 
             <div class="form-row">
@@ -246,10 +275,11 @@
                 <p><strong>Device Code:</strong> <span id="rdDeviceCode"></span></p>
                 <p><small>Open the verification URL, enter the user code, approve access, then click <strong>Complete OAuth</strong>.</small></p>
             </div>
+            </div>
         </div>
         
         <!-- Integration Settings -->
-        <div class="settings-section">
+        <div class="settings-section client-group client-group--torrent" data-client-group="torrent">
             <h2>🔗 Integration Settings</h2>
             <p class="section-description">External integrations and API configuration</p>
             
@@ -402,6 +432,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const rdAuthModeSelect = document.getElementById('RD_AUTH_MODE');
     const clientGroups = document.querySelectorAll('[data-client-group]');
     const rdAuthGroups = document.querySelectorAll('[data-rd-auth-group]');
+    const accordionSections = document.querySelectorAll('[data-accordion-section]');
 
     function normalizeClientType(value) {
         const normalizedValue = (value || '').toLowerCase().trim();
@@ -432,6 +463,37 @@ document.addEventListener('DOMContentLoaded', function() {
         rdAuthGroups.forEach(group => {
             const target = group.getAttribute('data-rd-auth-group');
             setElementVisibility(group, target === authMode);
+        });
+    }
+
+    function setAccordionState(section, isExpanded) {
+        const toggle = section.querySelector('[data-accordion-toggle]');
+        const panel = section.querySelector('[data-accordion-panel]');
+        const icon = section.querySelector('.section-toggle__icon');
+        if (!toggle || !panel) {
+            return;
+        }
+
+        toggle.setAttribute('aria-expanded', isExpanded ? 'true' : 'false');
+        section.classList.toggle('is-collapsed', !isExpanded);
+        panel.hidden = !isExpanded;
+        if (icon) {
+            icon.textContent = isExpanded ? '▴' : '▾';
+        }
+    }
+
+    function initializeAccordions() {
+        accordionSections.forEach(section => {
+            const toggle = section.querySelector('[data-accordion-toggle]');
+            if (!toggle) {
+                return;
+            }
+
+            setAccordionState(section, true);
+            toggle.addEventListener('click', function() {
+                const isExpanded = toggle.getAttribute('aria-expanded') === 'true';
+                setAccordionState(section, !isExpanded);
+            });
         });
     }
 
@@ -530,6 +592,7 @@ document.addEventListener('DOMContentLoaded', function() {
         rdAuthModeSelect.addEventListener('change', applyRdAuthVisibility);
     }
 
+    initializeAccordions();
     applyClientVisibility();
     applyRdAuthVisibility();
 });

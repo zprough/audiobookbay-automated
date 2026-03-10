@@ -56,6 +56,8 @@ ABB_DNS_LIFETIME=2.5           # (Optional) DNS query timeout/lifetime in second
 INCOGNITO_MODE=true            # (Optional) Enable per-request incognito style headers (no persistent cookies, cache bust)
 ROTATE_USER_AGENT=true         # (Optional) Rotate user-agent each request (default true)
 DISABLE_CACHE_BUST=false       # (Optional) If true, disables the _cb cache-busting query string
+RD_APP_TAG=abb-automated       # (Real-Debrid optional) Tag used to track app-origin torrents for status filtering
+RD_TRACKED_TORRENTS_FILE=/downloads/.abb-rd-tracked-torrents.json # (Real-Debrid optional) Tracked torrent ID storage file
 ```
 Mirror Fallback:
 
@@ -145,6 +147,10 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
     DL_PASSWORD=pass
     DL_CATEGORY=abb-downloader
     SAVE_PATH_BASE=/audiobooks
+
+    # Real-Debrid optional filtering/tracking
+    RD_APP_TAG=abb-automated
+    RD_TRACKED_TORRENTS_FILE=/downloads/.abb-rd-tracked-torrents.json
     
     # AudiobookBar Hostname
     ABB_HOSTNAME='audiobookbay.is' #Default

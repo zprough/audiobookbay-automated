@@ -32,7 +32,7 @@ services:
     environment:
       - FLASK_DEBUG=true
       - DEV_PORT=${DEV_PORT:-5079}
-      - DOWNLOAD_CLIENT=${DOWNLOAD_CLIENT:-qbittorrent}
+      - DOWNLOAD_CLIENT=realdebrid
       - DL_SCHEME=${DL_SCHEME:-http}
       - DL_HOST=${DL_HOST}
       - DL_PORT=${DL_PORT}

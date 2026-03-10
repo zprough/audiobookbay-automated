@@ -287,7 +287,11 @@ def status():
     except DownloadClientError as e:
         print(f"[FLASK] Download client error on status: {e}")
         fallback_torrents = _build_rd_job_status_rows() if _is_realdebrid_client() else []
-        return render_template('status.html', torrents=fallback_torrents)
+        return render_template(
+            'status.html',
+            torrents=fallback_torrents,
+            status_notice='Download client is currently unavailable. Check settings if this persists.'
+        )
         
     except Exception as e:
         print(f"[FLASK] Status error: {e}")
@@ -333,7 +337,8 @@ def settings():
                 'TORZNAB_DESCRIPTION', 'FLASK_DEBUG', 'DEV_PORT',
                 'RD_AUTH_MODE', 'RD_API_TOKEN', 'RD_BASE_CLIENT_ID', 'RD_CLIENT_ID',
                 'RD_CLIENT_SECRET', 'RD_ACCESS_TOKEN', 'RD_REFRESH_TOKEN',
-                'RD_DOWNLOADS_DIR', 'RD_MIN_FILE_SIZE_MB', 'RD_EXCLUDE_EXTENSIONS',
+                'RD_DOWNLOADS_DIR', 'RD_APP_TAG', 'RD_TRACKED_TORRENTS_FILE',
+                'RD_MIN_FILE_SIZE_MB', 'RD_EXCLUDE_EXTENSIONS',
                 'RD_POLL_INTERVAL_SEC', 'RD_MAX_WAIT_SEC'
             ]
             
@@ -400,6 +405,8 @@ def _get_current_settings() -> Dict[str, Optional[str]]:
         'RD_ACCESS_TOKEN': os.getenv('RD_ACCESS_TOKEN'),
         'RD_REFRESH_TOKEN': os.getenv('RD_REFRESH_TOKEN'),
         'RD_DOWNLOADS_DIR': os.getenv('RD_DOWNLOADS_DIR', '/downloads'),
+        'RD_APP_TAG': os.getenv('RD_APP_TAG', 'abb-automated'),
+        'RD_TRACKED_TORRENTS_FILE': os.getenv('RD_TRACKED_TORRENTS_FILE'),
         'RD_MIN_FILE_SIZE_MB': os.getenv('RD_MIN_FILE_SIZE_MB', '25'),
         'RD_EXCLUDE_EXTENSIONS': os.getenv('RD_EXCLUDE_EXTENSIONS', '.nfo,.txt,.jpg,.jpeg,.png'),
         'RD_POLL_INTERVAL_SEC': os.getenv('RD_POLL_INTERVAL_SEC', '5'),
@@ -472,7 +479,8 @@ def _write_env_file(settings: Dict[str, str]) -> bool:
                 'Real-Debrid Settings': [
                     'RD_AUTH_MODE', 'RD_API_TOKEN', 'RD_BASE_CLIENT_ID', 'RD_CLIENT_ID',
                     'RD_CLIENT_SECRET', 'RD_ACCESS_TOKEN', 'RD_REFRESH_TOKEN',
-                    'RD_DOWNLOADS_DIR', 'RD_MIN_FILE_SIZE_MB', 'RD_EXCLUDE_EXTENSIONS',
+                    'RD_DOWNLOADS_DIR', 'RD_APP_TAG', 'RD_TRACKED_TORRENTS_FILE',
+                    'RD_MIN_FILE_SIZE_MB', 'RD_EXCLUDE_EXTENSIONS',
                     'RD_POLL_INTERVAL_SEC', 'RD_MAX_WAIT_SEC'
                 ],
                 'Navigation Settings': ['NAV_LINK_NAME', 'NAV_LINK_URL'],
