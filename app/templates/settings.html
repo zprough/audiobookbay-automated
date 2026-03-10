@@ -50,6 +50,7 @@
                     <option value="qbittorrent" {% if settings.DOWNLOAD_CLIENT == 'qbittorrent' %}selected{% endif %}>qBittorrent</option>
                     <option value="transmission" {% if settings.DOWNLOAD_CLIENT == 'transmission' %}selected{% endif %}>Transmission</option>
                     <option value="deluge" {% if settings.DOWNLOAD_CLIENT == 'deluge' %}selected{% endif %}>Deluge</option>
+                    <option value="realdebrid" {% if settings.DOWNLOAD_CLIENT == 'realdebrid' %}selected{% endif %}>Real-Debrid</option>
                 </select>
                 <small>Type of torrent client to use for downloads</small>
             </div>
@@ -120,6 +121,132 @@
                        value="{{ settings.SAVE_PATH_BASE or '' }}" 
                        placeholder="/downloads/audiobooks">
                 <small>Base directory for saving downloads (absolute path)</small>
+            </div>
+
+            <div class="form-group">
+                <label for="DL_URL">Download Client URL (optional)</label>
+                <input type="text" id="DL_URL" name="DL_URL" 
+                       value="{{ settings.DL_URL or '' }}" 
+                       placeholder="http://192.168.1.100:8112">
+                <small>Optional complete URL (used by Deluge or as override)</small>
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <h2>🔐 Real-Debrid Settings</h2>
+            <p class="section-description">Authorize Real-Debrid and control file selection/download behavior</p>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="RD_AUTH_MODE">Auth Mode</label>
+                    <select id="RD_AUTH_MODE" name="RD_AUTH_MODE">
+                        <option value="oauth" {% if settings.RD_AUTH_MODE != 'token' %}selected{% endif %}>OAuth Device Flow</option>
+                        <option value="token" {% if settings.RD_AUTH_MODE == 'token' %}selected{% endif %}>Static API Token</option>
+                    </select>
+                    <small>Choose OAuth for full authorization flow, or static token for manual auth</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="RD_BASE_CLIENT_ID">RD Base Client ID</label>
+                    <input type="text" id="RD_BASE_CLIENT_ID" name="RD_BASE_CLIENT_ID"
+                           value="{{ settings.RD_BASE_CLIENT_ID or 'X245A4XAIBGVM' }}"
+                           placeholder="X245A4XAIBGVM">
+                    <small>Default works for no-secret device flow</small>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="RD_API_TOKEN">Real-Debrid API Token (token mode)</label>
+                <input type="password" id="RD_API_TOKEN" name="RD_API_TOKEN"
+                       value="{{ settings.RD_API_TOKEN or '' }}"
+                       placeholder="Paste your Real-Debrid API token">
+                <small>Used only when Auth Mode is set to Static API Token</small>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="RD_CLIENT_ID">OAuth Client ID</label>
+                    <input type="text" id="RD_CLIENT_ID" name="RD_CLIENT_ID"
+                           value="{{ settings.RD_CLIENT_ID or '' }}"
+                           placeholder="Auto-filled after OAuth">
+                </div>
+                <div class="form-group">
+                    <label for="RD_CLIENT_SECRET">OAuth Client Secret</label>
+                    <input type="password" id="RD_CLIENT_SECRET" name="RD_CLIENT_SECRET"
+                           value="{{ settings.RD_CLIENT_SECRET or '' }}"
+                           placeholder="Auto-filled after OAuth">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="RD_ACCESS_TOKEN">OAuth Access Token</label>
+                    <input type="password" id="RD_ACCESS_TOKEN" name="RD_ACCESS_TOKEN"
+                           value="{{ settings.RD_ACCESS_TOKEN or '' }}"
+                           placeholder="Auto-filled after OAuth">
+                </div>
+                <div class="form-group">
+                    <label for="RD_REFRESH_TOKEN">OAuth Refresh Token</label>
+                    <input type="password" id="RD_REFRESH_TOKEN" name="RD_REFRESH_TOKEN"
+                           value="{{ settings.RD_REFRESH_TOKEN or '' }}"
+                           placeholder="Auto-filled after OAuth">
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="RD_DOWNLOADS_DIR">Real-Debrid Download Directory</label>
+                    <input type="text" id="RD_DOWNLOADS_DIR" name="RD_DOWNLOADS_DIR"
+                           value="{{ settings.RD_DOWNLOADS_DIR or '/downloads' }}"
+                           placeholder="/downloads">
+                    <small>Resolved files are downloaded directly into this path</small>
+                </div>
+
+                <div class="form-group">
+                    <label for="RD_MIN_FILE_SIZE_MB">Minimum File Size (MB)</label>
+                    <input type="number" id="RD_MIN_FILE_SIZE_MB" name="RD_MIN_FILE_SIZE_MB"
+                           value="{{ settings.RD_MIN_FILE_SIZE_MB or 25 }}"
+                           min="0" step="0.1" placeholder="25">
+                    <small>Files smaller than this are skipped during selection</small>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="form-group">
+                    <label for="RD_EXCLUDE_EXTENSIONS">Excluded Extensions (comma separated)</label>
+                    <input type="text" id="RD_EXCLUDE_EXTENSIONS" name="RD_EXCLUDE_EXTENSIONS"
+                           value="{{ settings.RD_EXCLUDE_EXTENSIONS or '.nfo,.txt,.jpg,.jpeg,.png' }}"
+                           placeholder=".nfo,.txt,.jpg,.jpeg,.png">
+                    <small>Extensions to skip when auto-selecting files</small>
+                </div>
+                <div class="form-group">
+                    <label for="RD_POLL_INTERVAL_SEC">Status Poll Interval (sec)</label>
+                    <input type="number" id="RD_POLL_INTERVAL_SEC" name="RD_POLL_INTERVAL_SEC"
+                           value="{{ settings.RD_POLL_INTERVAL_SEC or 5 }}"
+                           min="2" step="1" placeholder="5">
+                    <small>Polling interval while waiting for RD torrent state changes</small>
+                </div>
+            </div>
+
+            <div class="form-group">
+                <label for="RD_MAX_WAIT_SEC">Max Wait Time (sec)</label>
+                <input type="number" id="RD_MAX_WAIT_SEC" name="RD_MAX_WAIT_SEC"
+                       value="{{ settings.RD_MAX_WAIT_SEC or 900 }}"
+                       min="30" step="10" placeholder="900">
+                <small>Maximum wait time for Real-Debrid torrent readiness/completion</small>
+            </div>
+
+            <div class="form-actions">
+                <button type="button" class="btn-secondary" id="rdStartAuthBtn">🔑 Start Real-Debrid OAuth</button>
+                <button type="button" class="btn-secondary" id="rdCompleteAuthBtn">✅ Complete OAuth</button>
+            </div>
+
+            <div class="settings-info" id="rdDeviceInfo" style="display:none; margin-top: 1rem;">
+                <h3>Real-Debrid Device Authorization</h3>
+                <p><strong>Verification URL:</strong> <a id="rdVerificationUrl" href="#" target="_blank" rel="noopener noreferrer"></a></p>
+                <p><strong>User Code:</strong> <span id="rdUserCode"></span></p>
+                <p><strong>Device Code:</strong> <span id="rdDeviceCode"></span></p>
+                <p><small>Open the verification URL, enter the user code, approve access, then click <strong>Complete OAuth</strong>.</small></p>
             </div>
         </div>
         
@@ -202,6 +329,9 @@
             <button type="submit" class="btn-primary">
                 💾 Save Settings
             </button>
+            <button type="button" class="btn-secondary" id="testClientBtn">
+                🧪 Test Download Client
+            </button>
             <button type="button" class="btn-secondary" onclick="location.reload()">
                 🔄 Reset Form
             </button>
@@ -260,6 +390,96 @@ document.addEventListener('DOMContentLoaded', function() {
             successAlert.style.opacity = '0';
             setTimeout(() => successAlert.remove(), 300);
         }, 5000);
+    }
+
+    const rdStartBtn = document.getElementById('rdStartAuthBtn');
+    const rdCompleteBtn = document.getElementById('rdCompleteAuthBtn');
+    const testClientBtn = document.getElementById('testClientBtn');
+    const rdInfo = document.getElementById('rdDeviceInfo');
+    const rdVerificationUrl = document.getElementById('rdVerificationUrl');
+    const rdUserCode = document.getElementById('rdUserCode');
+    const rdDeviceCode = document.getElementById('rdDeviceCode');
+    const rdBaseClientId = document.getElementById('RD_BASE_CLIENT_ID');
+
+    async function startRdOauth() {
+        try {
+            const body = new URLSearchParams();
+            body.append('RD_BASE_CLIENT_ID', rdBaseClientId.value.trim() || 'X245A4XAIBGVM');
+
+            const res = await fetch('/settings/realdebrid/device/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                body: body.toString()
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || 'Failed to start authorization');
+            }
+
+            rdInfo.style.display = 'block';
+            rdVerificationUrl.href = data.verification_url;
+            rdVerificationUrl.textContent = data.verification_url;
+            rdUserCode.textContent = data.user_code;
+            rdDeviceCode.textContent = data.device_code;
+
+            alert('Real-Debrid authorization started. Follow the displayed steps, then click Complete OAuth.');
+        } catch (error) {
+            alert(`Real-Debrid OAuth start failed: ${error.message}`);
+        }
+    }
+
+    async function completeRdOauth() {
+        try {
+            const deviceCode = rdDeviceCode.textContent.trim() || prompt('Paste the Real-Debrid device code:');
+            if (!deviceCode) {
+                return;
+            }
+
+            const res = await fetch('/settings/realdebrid/device/complete', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    device_code: deviceCode,
+                    base_client_id: rdBaseClientId.value.trim() || 'X245A4XAIBGVM'
+                })
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || 'Failed to complete authorization');
+            }
+
+            alert('Real-Debrid authorization successful. Saving tokens to the current form. Click Save Settings to persist all values.');
+            location.reload();
+        } catch (error) {
+            alert(`Real-Debrid OAuth completion failed: ${error.message}`);
+        }
+    }
+
+    if (rdStartBtn) {
+        rdStartBtn.addEventListener('click', startRdOauth);
+    }
+
+    if (rdCompleteBtn) {
+        rdCompleteBtn.addEventListener('click', completeRdOauth);
+    }
+
+    async function testDownloadClient() {
+        try {
+            const res = await fetch('/settings/test-download-client', {
+                method: 'POST'
+            });
+            const data = await res.json();
+            if (!res.ok) {
+                throw new Error(data.message || 'Connection test failed');
+            }
+            alert(`✅ ${data.message || 'Connection successful'}`);
+        } catch (error) {
+            alert(`❌ ${error.message}`);
+        }
+    }
+
+    if (testClientBtn) {
+        testClientBtn.addEventListener('click', testDownloadClient);
     }
 });
 </script>

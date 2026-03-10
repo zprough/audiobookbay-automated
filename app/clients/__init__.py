@@ -8,10 +8,14 @@ from .download_client import (
     get_torrents,
     get_client_info,
     get_download_client,
+    rd_start_device_code,
+    rd_get_device_credentials,
+    rd_exchange_device_token,
     BaseDownloadClient,
     QBittorrentManager,
     TransmissionManager,
     DelugeManager,
+    RealDebridManager,
     DownloadClientError
 )
 
@@ -20,9 +24,13 @@ __all__ = [
     'get_torrents',
     'get_client_info',
     'get_download_client',
+    'rd_start_device_code',
+    'rd_get_device_credentials',
+    'rd_exchange_device_token',
     'BaseDownloadClient',
     'QBittorrentManager',
     'TransmissionManager', 
     'DelugeManager',
+    'RealDebridManager',
     'DownloadClientError'
 ]

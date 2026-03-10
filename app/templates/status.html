@@ -10,6 +10,10 @@
 <div class="title-container">
     <h1>Torrent Status</h1>
 </div>
+{% if error %}
+<div class="error-message">{{ error }}</div>
+{% endif %}
+{% if torrents %}
 <table>
     <thead>
         <tr>
@@ -30,4 +34,7 @@
         {% endfor %}
     </tbody>
 </table>
+{% else %}
+<p>No active downloads or jobs found.</p>
+{% endif %}
 {% endblock %}

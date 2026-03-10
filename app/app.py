@@ -4,16 +4,34 @@ Searches AudiobookBay for audiobooks and adds them to torrent clients.
 """
 
 import os
-from typing import Dict, Optional
+import threading
+from queue import Queue
+from datetime import datetime
+from uuid import uuid4
+from typing import Dict, Optional, Any, List
 from flask import Flask, request, render_template, jsonify, redirect, url_for, flash
 from dotenv import load_dotenv
 
 # Import our custom modules
 from api.torznab_api import torznab_bp
 from scraper.audiobookbay_scraper import search_audiobookbay, extract_magnet_link, get_scraper_stats
-from clients.download_client import add_torrent, get_torrents, get_client_info, DownloadClientError
+from clients.download_client import (
+    add_torrent,
+    get_torrents,
+    get_client_info,
+    test_connection as test_download_client_connection,
+    rd_start_device_code,
+    rd_get_device_credentials,
+    rd_exchange_device_token,
+    DownloadClientError,
+)
 
 app = Flask(__name__)
+
+RD_DEVICE_SESSIONS: Dict[str, Dict[str, str]] = {}
+RD_JOB_QUEUE: Queue[dict] = Queue()
+RD_JOBS: Dict[str, Dict[str, Any]] = {}
+RD_JOBS_LOCK = threading.Lock()
 
 # Configure Flask app
 app.secret_key = os.getenv('SECRET_KEY', 'audiobookbay-automated-secret-key-change-in-production')
@@ -42,16 +60,14 @@ def log_configuration() -> None:
     print("=" * 60)
     print("AUDIOBOOKBAY AUTOMATED - CONFIGURATION")
     print("=" * 60)
-    
-    # Scraper configuration
+
     scraper_stats = get_scraper_stats()
     hostname = scraper_stats.get('active_hostname') or scraper_stats.get('hostname') or 'unavailable'
     print("SCRAPER CONFIGURATION:")
     print(f"  ABB_HOSTNAME: {hostname}")
     print(f"  PAGE_LIMIT: {scraper_stats.get('page_limit', 'unknown')}")
     print(f"  DEFAULT_TRACKERS: {scraper_stats.get('default_trackers_count', 'unknown')}")
-    
-    # Download client configuration
+
     client_info = get_client_info()
     print("DOWNLOAD CLIENT CONFIGURATION:")
     print(f"  CLIENT_TYPE: {client_info['client_type']}")
@@ -59,12 +75,81 @@ def log_configuration() -> None:
     print(f"  PORT: {client_info['port']}")
     print(f"  CATEGORY: {client_info['category']}")
     print(f"  SAVE_PATH: {client_info['save_path_base']}")
-    
-    # Flask app configuration
+
     print("FLASK APP CONFIGURATION:")
     print(f"  NAV_LINK_NAME: {NAV_LINK_NAME}")
     print(f"  NAV_LINK_URL: {NAV_LINK_URL}")
     print("=" * 60)
+
+
+def _now_iso() -> str:
+    return datetime.utcnow().isoformat() + "Z"
+
+
+def _is_realdebrid_client() -> bool:
+    client_type = (os.getenv("DOWNLOAD_CLIENT") or "").strip().lower()
+    return client_type in {"realdebrid", "real-debrid"}
+
+
+def _build_rd_job_status_rows() -> List[Dict[str, Any]]:
+    with RD_JOBS_LOCK:
+        sorted_jobs = sorted(RD_JOBS.values(), key=lambda item: item.get("created_at", ""), reverse=True)
+
+    rows: List[Dict[str, Any]] = []
+    for job in sorted_jobs:
+        rows.append(
+            {
+                "name": f"[RD Job] {job.get('title', 'Unknown')}",
+                "progress": job.get("progress", 0),
+                "state": job.get("state", "queued"),
+                "size": job.get("size", "N/A"),
+            }
+        )
+
+    return rows
+
+
+def _run_rd_job(job_id: str, magnet_link: str, title: str) -> None:
+    with RD_JOBS_LOCK:
+        if job_id not in RD_JOBS:
+            return
+        RD_JOBS[job_id]["state"] = "running"
+        RD_JOBS[job_id]["progress"] = 5
+        RD_JOBS[job_id]["updated_at"] = _now_iso()
+
+    try:
+        add_torrent(magnet_link, title)
+        with RD_JOBS_LOCK:
+            RD_JOBS[job_id]["state"] = "completed"
+            RD_JOBS[job_id]["progress"] = 100
+            RD_JOBS[job_id]["updated_at"] = _now_iso()
+    except Exception as e:
+        with RD_JOBS_LOCK:
+            RD_JOBS[job_id]["state"] = f"error: {str(e)}"
+            RD_JOBS[job_id]["progress"] = 100
+            RD_JOBS[job_id]["updated_at"] = _now_iso()
+
+
+def _rd_job_worker() -> None:
+    while True:
+        job = RD_JOB_QUEUE.get()
+        try:
+            _run_rd_job(job["job_id"], job["magnet_link"], job["title"])
+        except Exception as e:
+            print(f"[RD] Worker unexpected error: {e}")
+        finally:
+            RD_JOB_QUEUE.task_done()
+
+
+def _ensure_rd_worker_started() -> None:
+    if getattr(_ensure_rd_worker_started, "_started", False):
+        return
+    worker = threading.Thread(target=_rd_job_worker, name="rd-job-worker", daemon=True)
+    worker.start()
+    _ensure_rd_worker_started._started = True
+
+
+_ensure_rd_worker_started()
 
 # Log configuration on startup
 log_configuration()
@@ -147,6 +232,26 @@ def send():
 
         # Add torrent to download client
         try:
+            if _is_realdebrid_client():
+                job_id = str(uuid4())
+                with RD_JOBS_LOCK:
+                    RD_JOBS[job_id] = {
+                        "job_id": job_id,
+                        "title": title,
+                        "state": "queued",
+                        "progress": 0,
+                        "size": "N/A",
+                        "created_at": _now_iso(),
+                        "updated_at": _now_iso(),
+                    }
+
+                RD_JOB_QUEUE.put({"job_id": job_id, "magnet_link": magnet_link, "title": title})
+                print(f"[FLASK] Queued Real-Debrid job: {title} ({job_id})")
+                return jsonify({
+                    'message': 'Real-Debrid job queued. The audiobook will download to /downloads in the background.',
+                    'job_id': job_id,
+                })
+
             add_torrent(magnet_link, title)
             print(f"[FLASK] Successfully added torrent: {title}")
             return jsonify({
@@ -173,6 +278,8 @@ def status():
     """
     try:
         torrents = get_torrents()
+        if _is_realdebrid_client():
+            torrents = _build_rd_job_status_rows() + torrents
         print(f"[FLASK] Status page: showing {len(torrents)} torrents")
         return render_template('status.html', torrents=torrents)
         
@@ -185,6 +292,18 @@ def status():
         print(f"[FLASK] Status error: {e}")
         error_message = f"Failed to fetch torrent status: {str(e)}"
         return render_template('status.html', torrents=[], error=error_message)
+
+
+@app.route('/settings/test-download-client', methods=['POST'])
+def settings_test_download_client():
+    """Test current download client connection from settings page."""
+    try:
+        is_ok = test_download_client_connection()
+        if is_ok:
+            return jsonify({'message': 'Connection successful'})
+        return jsonify({'message': 'Connection failed. Check your client settings and credentials.'}), 500
+    except Exception as e:
+        return jsonify({'message': f'Connection test error: {str(e)}'}), 500
 
 @app.route('/settings', methods=['GET', 'POST'])
 def settings():
@@ -208,9 +327,13 @@ def settings():
             # Define all possible environment variables
             env_vars = [
                 'ABB_HOSTNAME', 'PAGE_LIMIT', 'DOWNLOAD_CLIENT', 'DL_HOST', 'DL_PORT',
-                'DL_USERNAME', 'DL_PASSWORD', 'DL_CATEGORY', 'SAVE_PATH_BASE',
+                'DL_USERNAME', 'DL_PASSWORD', 'DL_CATEGORY', 'SAVE_PATH_BASE', 'DL_URL',
                 'NAV_LINK_NAME', 'NAV_LINK_URL', 'TORZNAB_API_KEY', 'TORZNAB_TITLE',
-                'TORZNAB_DESCRIPTION', 'FLASK_DEBUG', 'DEV_PORT'
+                'TORZNAB_DESCRIPTION', 'FLASK_DEBUG', 'DEV_PORT',
+                'RD_AUTH_MODE', 'RD_API_TOKEN', 'RD_BASE_CLIENT_ID', 'RD_CLIENT_ID',
+                'RD_CLIENT_SECRET', 'RD_ACCESS_TOKEN', 'RD_REFRESH_TOKEN',
+                'RD_DOWNLOADS_DIR', 'RD_MIN_FILE_SIZE_MB', 'RD_EXCLUDE_EXTENSIONS',
+                'RD_POLL_INTERVAL_SEC', 'RD_MAX_WAIT_SEC'
             ]
             
             # Collect form data
@@ -263,10 +386,23 @@ def _get_current_settings() -> Dict[str, Optional[str]]:
         'DOWNLOAD_CLIENT': os.getenv('DOWNLOAD_CLIENT'),
         'DL_HOST': os.getenv('DL_HOST'),
         'DL_PORT': os.getenv('DL_PORT'),
+        'DL_URL': os.getenv('DL_URL'),
         'DL_USERNAME': os.getenv('DL_USERNAME'),
         'DL_PASSWORD': os.getenv('DL_PASSWORD'),
         'DL_CATEGORY': os.getenv('DL_CATEGORY'),
         'SAVE_PATH_BASE': os.getenv('SAVE_PATH_BASE'),
+        'RD_AUTH_MODE': os.getenv('RD_AUTH_MODE', 'oauth'),
+        'RD_API_TOKEN': os.getenv('RD_API_TOKEN'),
+        'RD_BASE_CLIENT_ID': os.getenv('RD_BASE_CLIENT_ID', 'X245A4XAIBGVM'),
+        'RD_CLIENT_ID': os.getenv('RD_CLIENT_ID'),
+        'RD_CLIENT_SECRET': os.getenv('RD_CLIENT_SECRET'),
+        'RD_ACCESS_TOKEN': os.getenv('RD_ACCESS_TOKEN'),
+        'RD_REFRESH_TOKEN': os.getenv('RD_REFRESH_TOKEN'),
+        'RD_DOWNLOADS_DIR': os.getenv('RD_DOWNLOADS_DIR', '/downloads'),
+        'RD_MIN_FILE_SIZE_MB': os.getenv('RD_MIN_FILE_SIZE_MB', '25'),
+        'RD_EXCLUDE_EXTENSIONS': os.getenv('RD_EXCLUDE_EXTENSIONS', '.nfo,.txt,.jpg,.jpeg,.png'),
+        'RD_POLL_INTERVAL_SEC': os.getenv('RD_POLL_INTERVAL_SEC', '5'),
+        'RD_MAX_WAIT_SEC': os.getenv('RD_MAX_WAIT_SEC', '900'),
         'NAV_LINK_NAME': os.getenv('NAV_LINK_NAME'),
         'NAV_LINK_URL': os.getenv('NAV_LINK_URL'),
         'TORZNAB_API_KEY': os.getenv('TORZNAB_API_KEY'),
@@ -331,7 +467,13 @@ def _write_env_file(settings: Dict[str, str]) -> bool:
             categories = {
                 'AudiobookBay Settings': ['ABB_HOSTNAME', 'PAGE_LIMIT'],
                 'Download Client Settings': ['DOWNLOAD_CLIENT', 'DL_HOST', 'DL_PORT', 
-                                           'DL_USERNAME', 'DL_PASSWORD', 'DL_CATEGORY', 'SAVE_PATH_BASE'],
+                                           'DL_USERNAME', 'DL_PASSWORD', 'DL_CATEGORY', 'SAVE_PATH_BASE', 'DL_URL'],
+                'Real-Debrid Settings': [
+                    'RD_AUTH_MODE', 'RD_API_TOKEN', 'RD_BASE_CLIENT_ID', 'RD_CLIENT_ID',
+                    'RD_CLIENT_SECRET', 'RD_ACCESS_TOKEN', 'RD_REFRESH_TOKEN',
+                    'RD_DOWNLOADS_DIR', 'RD_MIN_FILE_SIZE_MB', 'RD_EXCLUDE_EXTENSIONS',
+                    'RD_POLL_INTERVAL_SEC', 'RD_MAX_WAIT_SEC'
+                ],
                 'Navigation Settings': ['NAV_LINK_NAME', 'NAV_LINK_URL'],
                 'Torznab API Settings': ['TORZNAB_API_KEY', 'TORZNAB_TITLE', 'TORZNAB_DESCRIPTION'],
                 'Development Settings': ['FLASK_DEBUG', 'DEV_PORT']
@@ -348,6 +490,87 @@ def _write_env_file(settings: Dict[str, str]) -> bool:
     except Exception as e:
         print(f"[FLASK] Error writing .env file: {e}")
         return False
+
+
+@app.route('/settings/realdebrid/device/start', methods=['POST'])
+def start_realdebrid_device_auth():
+    """Start Real-Debrid OAuth2 device authorization flow."""
+    try:
+        payload = request.get_json(silent=True) if request.is_json else {}
+        base_client_id = request.form.get('RD_BASE_CLIENT_ID') or (payload or {}).get('RD_BASE_CLIENT_ID')
+        if not base_client_id:
+            base_client_id = os.getenv('RD_BASE_CLIENT_ID', 'X245A4XAIBGVM')
+
+        data = rd_start_device_code(base_client_id)
+        device_code = data.get('device_code')
+        if not device_code:
+            return jsonify({'message': 'Real-Debrid did not return a device code'}), 500
+
+        RD_DEVICE_SESSIONS[device_code] = {'base_client_id': base_client_id}
+
+        return jsonify({
+            'message': 'Device authorization started',
+            'device_code': device_code,
+            'user_code': data.get('user_code'),
+            'verification_url': data.get('verification_url'),
+            'interval': data.get('interval', 5),
+            'expires_in': data.get('expires_in', 1800),
+            'base_client_id': base_client_id,
+        })
+
+    except DownloadClientError as e:
+        return jsonify({'message': str(e)}), 500
+    except Exception as e:
+        return jsonify({'message': f'Failed to start Real-Debrid auth: {str(e)}'}), 500
+
+
+@app.route('/settings/realdebrid/device/complete', methods=['POST'])
+def complete_realdebrid_device_auth():
+    """Complete Real-Debrid OAuth2 device authorization flow."""
+    try:
+        data = request.get_json(silent=True) or request.form
+        device_code = (data.get('device_code') or '').strip()
+        base_client_id = (data.get('base_client_id') or '').strip()
+
+        if not device_code:
+            return jsonify({'message': 'Missing device_code'}), 400
+
+        if not base_client_id:
+            session_data = RD_DEVICE_SESSIONS.get(device_code, {})
+            base_client_id = session_data.get('base_client_id') or os.getenv('RD_BASE_CLIENT_ID', 'X245A4XAIBGVM')
+
+        try:
+            credentials = rd_get_device_credentials(base_client_id, device_code)
+        except DownloadClientError:
+            return jsonify({'message': 'Authorization pending. Complete code entry on Real-Debrid and try again.'}), 409
+
+        token_data = rd_exchange_device_token(
+            credentials['client_id'],
+            credentials['client_secret'],
+            device_code,
+        )
+
+        updates = {
+            'RD_AUTH_MODE': 'oauth',
+            'RD_BASE_CLIENT_ID': base_client_id,
+            'RD_CLIENT_ID': credentials.get('client_id', ''),
+            'RD_CLIENT_SECRET': credentials.get('client_secret', ''),
+            'RD_ACCESS_TOKEN': token_data.get('access_token', ''),
+            'RD_REFRESH_TOKEN': token_data.get('refresh_token', ''),
+        }
+
+        _write_env_file(updates)
+        for key, value in updates.items():
+            os.environ[key] = value
+
+        RD_DEVICE_SESSIONS.pop(device_code, None)
+
+        return jsonify({'message': 'Real-Debrid authorization successful'})
+
+    except DownloadClientError as e:
+        return jsonify({'message': str(e)}), 500
+    except Exception as e:
+        return jsonify({'message': f'Failed to complete Real-Debrid auth: {str(e)}'}), 500
 
 # =============================================================================
 # APPLICATION STARTUP

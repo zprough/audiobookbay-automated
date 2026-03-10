@@ -9,6 +9,7 @@ services:
     volumes:
       - $DOCKERDIR/appdata/audiobookbay-automated:/config
       - $DATADIR/Audiobooks:/audiobooks
+      - $DATADIR/audiobooks_need_processed:/downloads
     environment:
       - DOWNLOAD_CLIENT=qbittorrent
       - DL_SCHEME=http
