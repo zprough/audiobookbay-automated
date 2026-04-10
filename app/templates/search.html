@@ -157,7 +157,9 @@
         language: book.language || '',
         format: book.format || '',
         categories: Array.isArray(book.categories) ? book.categories : [],
-        keywords: Array.isArray(book.keywords) ? book.keywords : []
+        keywords: Array.isArray(book.keywords) ? book.keywords : [],
+        file_size_display: book.file_size_display || '',
+        bitrate_kbps: book.bitrate_kbps || null
     }));
 
     function saveSearchState(queryText, books) {
@@ -280,6 +282,20 @@
                     metaCompact.appendChild(chip);
                 }
                 
+                if (book.bitrate_kbps) {
+                    const chip = document.createElement('span');
+                    chip.className = 'meta-chip';
+                    chip.textContent = book.bitrate_kbps + ' kbps';
+                    metaCompact.appendChild(chip);
+                }
+                
+                if (book.file_size_display) {
+                    const chip = document.createElement('span');
+                    chip.className = 'meta-chip';
+                    chip.textContent = book.file_size_display;
+                    metaCompact.appendChild(chip);
+                }
+                
                 // Show first 2 categories only on mobile
                 if (book.categories && book.categories.length > 0) {
                     const categoriesToShow = book.categories.slice(0, 2);
@@ -324,6 +340,8 @@
                         <div class="book-metadata">
                             ${book.language ? `<div class="book-meta"><strong>Language:</strong> ${book.language}</div>` : ''}
                             ${book.format ? `<div class="book-meta"><strong>Format:</strong> ${book.format}</div>` : ''}
+                            ${book.bitrate_kbps ? `<div class="book-meta"><strong>Bitrate:</strong> ${book.bitrate_kbps} kbps</div>` : ''}
+                            ${book.file_size_display ? `<div class="book-meta"><strong>Size:</strong> ${book.file_size_display}</div>` : ''}
                             ${book.categories.length > 0 ? `<div class="book-meta"><strong>Categories:</strong> ${book.categories.join(', ')}</div>` : ''}
                             ${book.keywords.length > 0 ? `<div class="book-meta"><strong>Keywords:</strong> ${book.keywords.join(', ')}</div>` : ''}
                         </div>
@@ -375,7 +393,9 @@
                 language: book.language || '',
                 format: book.format || '',
                 categories: Array.isArray(book.categories) ? book.categories : [],
-                keywords: Array.isArray(book.keywords) ? book.keywords : []
+                keywords: Array.isArray(book.keywords) ? book.keywords : [],
+                file_size_display: book.file_size_display || '',
+                bitrate_kbps: book.bitrate_kbps || null
             }));
             if (searchInput && !searchInput.value) {
                 searchInput.value = cachedState.query || '';
