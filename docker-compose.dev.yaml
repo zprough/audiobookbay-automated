@@ -26,6 +26,8 @@ services:
       - ${DEV_DOCKERDIR:-./.dev-data}/appdata/audiobookbay-automated:/config
       - ${DEV_DATADIR:-./.dev-data}/Audiobooks:/audiobooks
       - ${DEV_DATADIR:-./.dev-data}/audiobooks_need_processed:/downloads
+      - ${DEV_DATADIR:-./.dev-data}/failed:/failed
+      - ${DEV_DATADIR:-./.dev-data}/work:/work
       - ${DEV_SECRETS_DIR:-./secrets}:/run/secrets:ro
     env_file:
       - .env
@@ -39,7 +41,9 @@ services:
       - DL_USERNAME=${DL_USERNAME}
       - DL_PASSWORD=${DL_PASSWORD}
       - DL_CATEGORY=${DL_CATEGORY:-abb-downloader-dev}
-      - SAVE_PATH_BASE=${SAVE_PATH_BASE:-/audiobooks}
+      # SAVE_PATH_BASE is the staging folder (agent's INPUT_DIR); the agent
+      # organizes finished audiobooks into LIBRARY_DIR (/audiobooks).
+      - SAVE_PATH_BASE=${SAVE_PATH_BASE:-/downloads}
       - ABB_HOSTNAME=${ABB_HOSTNAME:-audiobookbay.lu}
       - INCOGNITO_MODE=${INCOGNITO_MODE:-true}
       - ROTATE_USER_AGENT=${ROTATE_USER_AGENT:-true}
@@ -47,3 +51,13 @@ services:
       - ABB_TIMEOUT=${ABB_TIMEOUT:-8}
       - NAV_LINK_NAME=${NAV_LINK_NAME}
       - NAV_LINK_URL=${NAV_LINK_URL}
+      # --- Agent (organize/tag/move) settings ---
+      - INPUT_DIR=${INPUT_DIR:-/downloads}
+      - LIBRARY_DIR=${LIBRARY_DIR:-/audiobooks}
+      - FAILED_DIR=${FAILED_DIR:-/failed}
+      - WORK_DIR=${WORK_DIR:-/work}
+      - ENABLE_PICARD=${ENABLE_PICARD:-false}
+      - ENABLE_LLM=${ENABLE_LLM:-false}
+      - ENABLE_AUDIOBOOKSHELF_SCAN=${ENABLE_AUDIOBOOKSHELF_SCAN:-false}
+      - AUDIOBOOKSHELF_URL=${AUDIOBOOKSHELF_URL:-http://audiobookshelf:80}
+      - AUDIOBOOKSHELF_TOKEN=${AUDIOBOOKSHELF_TOKEN:-}

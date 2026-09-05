@@ -1,7 +1,7 @@
 
 # AudiobookBay Automated
 
-AudiobookBay Automated is a lightweight web application designed to simplify audiobook management. It allows users to search [**AudioBook Bay**](https://audiobookbay.lu/) for audiobooks and send magnet links directly to a designated **Deludge, qBittorrent or Transmission** client.
+AudiobookBay Automated is a Sonarr/Radarr-style automation tool for audiobooks. It lets you search [**AudioBook Bay**](https://audiobookbay.lu/) and send magnet links to a designated **Deluge, qBittorrent, Transmission, or Real-Debrid** client, then automatically organizes, tags, and moves completed downloads into your final audiobook library (e.g. for [**Audiobookshelf**](https://www.audiobookshelf.org/) to pick up).
 
 ## How It Works
 - **Search Results**: Users search for audiobooks. The app grabs results from AudioBook Bay and displays results with the **title** and **cover image**, along with two action links:
@@ -10,10 +10,9 @@ AudiobookBay Automated is a lightweight web application designed to simplify aud
 
 - **Magnet Link Generation**: When a user selects "Download to Server," the app generates a magnet link from the infohash displayed on AudioBook Bay and sends it to the torrent client. Along with the magnet link, the app assigns:
   - A **category label** for organizational purposes.
-  - A **save location** for downloaded files.
+  - A **staging save location** for downloaded files (`SAVE_PATH_BASE`).
 
-
-> **Note**: This app does not download or move any material itself (including torrent files). It only searches AudioBook Bay and facilitates magnet link generation for torrent.
+- **Automated Organizing (Agent)**: A background agent process watches the staging folder for completed downloads, then converts/merges audio files as needed, tags metadata (title/author/cover), renames, and moves the finished audiobook into your final library folder (`LIBRARY_DIR`) — the same folder your Audiobookshelf instance should scan. Items that fail processing are moved to `FAILED_DIR` for manual review instead of being silently dropped.
 
 
 ## Features
@@ -21,7 +20,7 @@ AudiobookBay Automated is a lightweight web application designed to simplify aud
 - **View Details**: Displays book titles and covers with quickly links to the full details on AudioBook Bay.
 - **Basic Download Status Page**: Monitor the download status of items in your torrent client that share the specified category assigned.
 - **No AudioBook Bay Account Needed**: The app automatically generates magnet links from the displayed infohashes and push them to your torrent client for downloading.
-- **Automatic Folder Organization**: Once the download is complete, torrent will automatically move the downloaded audiobook files to your save location. Audiobooks are organized into subfolders named after the AudioBook Bay title, making it easy for [**Audiobookshelf**](https://www.audiobookshelf.org/) to automatically add completed downloads to its library.
+- **Automatic Folder Organization**: Once a download finishes, the built-in agent process converts/tags/renames the audiobook and moves it into your library folder, organized into `Author/Title` subfolders, making it easy for [**Audiobookshelf**](https://www.audiobookshelf.org/) to automatically add completed downloads to its library.
 
 
 
@@ -46,7 +45,7 @@ DL_PORT=8080                   # torrent WebUI port
 DL_USERNAME=YOUR_USER          # torrent username
 DL_PASSWORD=YOUR_PASSWORD      # torrent password
 DL_CATEGORY=abb-downloader     # torrent category for downloads
-SAVE_PATH_BASE=/audiobooks     # Root path for audiobook downloads (relative to torrent)
+SAVE_PATH_BASE=/downloads      # Staging path where downloads land; the agent watches this (INPUT_DIR) and organizes finished books into LIBRARY_DIR
 ABB_HOSTNAME='audiobookbay.is' # Default
 PAGE_LIMIT=5                   # Defaults to 5 if not set, more than this may probably rate limit.
 ABB_TIMEOUT=8                  # (Seconds) network timeout and mirror probe timeout (optional)
@@ -58,6 +57,17 @@ ROTATE_USER_AGENT=true         # (Optional) Rotate user-agent each request (defa
 DISABLE_CACHE_BUST=false       # (Optional) If true, disables the _cb cache-busting query string
 RD_APP_TAG=abb-automated       # (Real-Debrid optional) Tag used to track app-origin torrents for status filtering
 RD_TRACKED_TORRENTS_FILE=/downloads/.abb-rd-tracked-torrents.json # (Real-Debrid optional) Tracked torrent ID storage file
+
+# Agent (organize/tag/move) settings
+INPUT_DIR=/downloads           # Staging folder the agent watches (same as SAVE_PATH_BASE)
+LIBRARY_DIR=/audiobooks        # Final library folder the agent moves organized books into (point Audiobookshelf here)
+FAILED_DIR=/failed             # Items that fail processing land here for manual review
+WORK_DIR=/work                 # Internal scratch space used during conversion
+ENABLE_PICARD=false            # Picard is a GUI app with no reliable headless mode; leave off
+ENABLE_LLM=false                # Optional Ollama-assisted title/author decisions
+ENABLE_AUDIOBOOKSHELF_SCAN=false # Optional: trigger an Audiobookshelf library scan after organizing
+AUDIOBOOKSHELF_URL=http://audiobookshelf:80
+AUDIOBOOKSHELF_TOKEN=
 ```
 Mirror Fallback:
 
@@ -111,6 +121,12 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
        ports:
          - "5078:5078"
        container_name: audiobookbay-downloader
+       volumes:
+         - ./config:/config
+         - ./downloads:/downloads   # staging folder (INPUT_DIR)
+         - ./audiobooks:/audiobooks # final library (LIBRARY_DIR), point Audiobookshelf here
+         - ./failed:/failed
+         - ./work:/work
        environment:
          - DOWNLOAD_CLIENT=qbittorrent
          - DL_SCHEME=http
@@ -119,10 +135,14 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
          - DL_USERNAME=admin
          - DL_PASSWORD=pass
          - DL_CATEGORY=abb-downloader
-         - SAVE_PATH_BASE=/audiobooks
+         - SAVE_PATH_BASE=/downloads
          - ABB_HOSTNAME='audiobookbay.is' #Default
          - NAV_LINK_NAME=Open Audiobook Player #Optional
          - NAV_LINK_URL=https://audiobooks.yourdomain.com/ #Optional
+         - INPUT_DIR=/downloads
+         - LIBRARY_DIR=/audiobooks
+         - FAILED_DIR=/failed
+         - WORK_DIR=/work
    ```
 
 2. **Start the Application**:
@@ -146,7 +166,13 @@ NAV_LINK_URL=https://audiobooks.yourdomain.com/
     DL_USERNAME=admin
     DL_PASSWORD=pass
     DL_CATEGORY=abb-downloader
-    SAVE_PATH_BASE=/audiobooks
+    SAVE_PATH_BASE=/downloads
+
+    # Agent (organize/tag/move) settings
+    INPUT_DIR=/downloads
+    LIBRARY_DIR=/audiobooks
+    FAILED_DIR=/failed
+    WORK_DIR=/work
 
     # Real-Debrid optional filtering/tracking
     RD_APP_TAG=abb-automated

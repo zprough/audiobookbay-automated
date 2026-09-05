@@ -43,6 +43,13 @@ button {
 button:hover {
     background-color: #2874a6;
 }
+button:disabled {
+    background-color: #566573;
+    cursor: not-allowed;
+}
+button.sending {
+    background-color: #7d6608;
+}
 table {
     width: 90%;
     max-width: 1000px;

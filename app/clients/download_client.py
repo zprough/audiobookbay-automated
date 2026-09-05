@@ -672,6 +672,27 @@ def get_download_client() -> BaseDownloadClient:
     else:
         raise DownloadClientError(f"Unsupported download client: {download_client}")
 
+def resolve_save_path(title: str) -> str:
+    """
+    Compute the destination folder for a given title using the currently
+    configured download client, without actually queuing anything.
+
+    Raises:
+        DownloadClientError: If SAVE_PATH_BASE cannot be determined.
+    """
+    config = _load_download_config()
+    client_type = (config["DOWNLOAD_CLIENT"] or "").lower()
+    save_path_base = config["SAVE_PATH_BASE"]
+
+    if not save_path_base and client_type in ['realdebrid', 'real-debrid']:
+        save_path_base = config["RD_DOWNLOADS_DIR"] or "/downloads"
+
+    if not save_path_base:
+        raise DownloadClientError("SAVE_PATH_BASE not configured")
+
+    return f"{save_path_base}/{sanitize_title(title)}"
+
+
 def add_torrent(magnet_link: str, title: str) -> bool:
     """
     Add a torrent to the configured download client.
@@ -686,18 +707,8 @@ def add_torrent(magnet_link: str, title: str) -> bool:
     Raises:
         DownloadClientError: If adding the torrent fails
     """
-    config = _load_download_config()
-    client_type = (config["DOWNLOAD_CLIENT"] or "").lower()
-    save_path_base = config["SAVE_PATH_BASE"]
+    save_path = resolve_save_path(title)
 
-    if not save_path_base and client_type in ['realdebrid', 'real-debrid']:
-        save_path_base = config["RD_DOWNLOADS_DIR"] or "/downloads"
-
-    if not save_path_base:
-        raise DownloadClientError("SAVE_PATH_BASE not configured")
-    
-    save_path = f"{save_path_base}/{sanitize_title(title)}"
-    
     client = get_download_client()
     return client.add_torrent(magnet_link, save_path)
 

@@ -10,6 +10,8 @@ services:
       - $DOCKERDIR/appdata/audiobookbay-automated:/config
       - $DATADIR/Audiobooks:/audiobooks
       - $DATADIR/audiobooks_need_processed:/downloads
+      - $DATADIR/audiobooks_failed:/failed
+      - $DATADIR/audiobooks_work:/work
     environment:
       - DOWNLOAD_CLIENT=qbittorrent
       - DL_SCHEME=http
@@ -18,7 +20,11 @@ services:
       - DL_USERNAME=/run/secrets/rdtclient_username
       - DL_PASSWORD=/run/secrets/rdtclient_password
       - DL_CATEGORY=abb-downloader
-      - SAVE_PATH_BASE=/audiobooks
+      # SAVE_PATH_BASE is the staging folder the download client writes to;
+      # the agent watches the same folder (INPUT_DIR) and organizes finished
+      # audiobooks into LIBRARY_DIR (/audiobooks), which is what Audiobookshelf
+      # should scan.
+      - SAVE_PATH_BASE=/downloads
       - ABB_HOSTNAME=audiobookbay.lu
       - INCOGNITO_MODE=true
       - ROTATE_USER_AGENT=true
@@ -26,6 +32,16 @@ services:
       - ABB_TIMEOUT=8
       # - NAV_LINK_NAME=Open Audiobook Player
       # - NAV_LINK_URL=https://audiobooks.yourdomain.com/
+      # --- Agent (organize/tag/move) settings ---
+      - INPUT_DIR=/downloads
+      - LIBRARY_DIR=/audiobooks
+      - FAILED_DIR=/failed
+      - WORK_DIR=/work
+      - ENABLE_PICARD=false
+      - ENABLE_LLM=false
+      - ENABLE_AUDIOBOOKSHELF_SCAN=false
+      # - AUDIOBOOKSHELF_URL=http://audiobookshelf:80
+      # - AUDIOBOOKSHELF_TOKEN=
     secrets:
       - rdtclient_password
       - rdtclient_username

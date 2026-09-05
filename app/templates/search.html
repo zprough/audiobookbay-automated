@@ -126,15 +126,54 @@
         messageScroller.style.display = 'none';
     }
 
-    function sendToQB(link, title) {
+    function sendToQB(link, title, btn) {
+        if (btn && btn.disabled) {
+            // Already sent or a request is already in flight for this row; ignore extra clicks.
+            return;
+        }
+        const originalText = btn ? btn.textContent : null;
+        if (btn) {
+            btn.disabled = true;
+            btn.textContent = 'Sending...';
+            btn.classList.add('sending');
+        }
+
+        // Look up the full book record so /send can persist a sidecar with
+        // cover/language/categories, not just the link+title.
+        const book = allBooks.find(b => b.link === link) || {};
         fetch('/send', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ link: link, title: title })
-        }).then(response => response.json())
-        .then(data => {
-          alert(data.message)
-          hideLoadingSpinner();
+            body: JSON.stringify({
+                link: link,
+                title: title || book.title,
+                cover: book.cover,
+                language: book.language,
+                categories: book.categories
+            })
+        }).then(response => response.json().then(data => ({ ok: response.ok, data })))
+        .then(({ ok, data }) => {
+            alert(data.message);
+            if (btn) {
+                if (ok) {
+                    btn.textContent = 'Sent';
+                    // Stay disabled: a successful send shouldn't be re-triggered from this row.
+                } else {
+                    btn.disabled = false;
+                    btn.textContent = originalText;
+                    btn.classList.remove('sending');
+                }
+            }
+            hideLoadingSpinner();
+        })
+        .catch(error => {
+            alert(`Failed to send '${title}': ${error}`);
+            if (btn) {
+                btn.disabled = false;
+                btn.textContent = originalText;
+                btn.classList.remove('sending');
+            }
+            hideLoadingSpinner();
         });
     }
 
@@ -323,7 +362,7 @@
                 const downloadButton = document.createElement('button');
                 downloadButton.textContent = 'Download';
                 downloadButton.className = 'download-btn';
-                downloadButton.onclick = () => sendToQB(book.link.replace(/'/g, "\\'"), book.title.replace(/'/g, "\\'"));
+                downloadButton.onclick = () => sendToQB(book.link.replace(/'/g, "\\'"), book.title.replace(/'/g, "\\'"), downloadButton);
                 
                 mobileActions.appendChild(detailsButton);
                 mobileActions.appendChild(downloadButton);
@@ -348,7 +387,7 @@
                     </td>
                     <td>
                         <button onclick="window.open('${book.link}', '_blank')">Details</button>
-                        <button onclick="sendToQB('${book.link.replace(/'/g, "\\'")}', '${book.title.replace(/'/g, "\\'")}')">Download to Server</button>
+                        <button onclick="sendToQB('${book.link.replace(/'/g, "\\'")}', '${book.title.replace(/'/g, "\\'")}', this)">Download to Server</button>
                     </td>
                 `;
             }
