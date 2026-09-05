@@ -21,8 +21,9 @@
     <thead>
         <tr>
             <th>Title</th>
-            <th>Progress</th>
-            <th>State</th>
+            <th>Local Progress</th>
+            <th>Local State</th>
+            <th>Real-Debrid Cache</th>
             <th>Size</th>
         </tr>
     </thead>
@@ -32,6 +33,13 @@
             <td>{{ torrent.name }}</td>
             <td>{{ torrent.progress }}%</td>
             <td>{{ torrent.state }}</td>
+            <td>
+                {% if torrent.rd_state is defined %}
+                {{ torrent.rd_progress }}% ({{ torrent.rd_state }})
+                {% else %}
+                N/A
+                {% endif %}
+            </td>
             <td>{{ torrent.size }}</td>
         </tr>
         {% endfor %}

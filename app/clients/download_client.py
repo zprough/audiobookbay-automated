@@ -17,6 +17,16 @@ from urllib.parse import urlparse
 
 from scraper.audiobookbay_scraper import sanitize_title
 
+# A new RealDebridManager is constructed on every request (see
+# get_download_client()), so the tracked-torrents file (which also stores
+# local download progress) needs a lock shared across instances/threads, not
+# a per-instance one.
+_TRACKED_FILE_LOCK = threading.Lock()
+
+# Minimum time between persisted local-progress writes while a file is
+# actively streaming down, to avoid hammering disk I/O on every chunk.
+_LOCAL_PROGRESS_MIN_INTERVAL_SEC = 2
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -373,7 +383,6 @@ class RealDebridManager(BaseDownloadClient):
         self.app_tag = config["RD_APP_TAG"] or "abb-automated"
         tracked_file = config.get("RD_TRACKED_TORRENTS_FILE")
         self.tracked_torrents_file = Path(tracked_file) if tracked_file else Path(self.downloads_dir) / ".abb-rd-tracked-torrents.json"
-        self._tracked_lock = threading.Lock()
         self.min_file_size_bytes = int(float(config["RD_MIN_FILE_SIZE_MB"]) * 1024 * 1024)
         self.exclude_extensions = _parse_extensions(config["RD_EXCLUDE_EXTENSIONS"])
         self.poll_interval_sec = max(2, int(config["RD_POLL_INTERVAL_SEC"]))
@@ -405,7 +414,7 @@ class RealDebridManager(BaseDownloadClient):
         if not torrent_id:
             return
 
-        with self._tracked_lock:
+        with _TRACKED_FILE_LOCK:
             payload = self._load_tracked_torrents()
             tags = payload.setdefault("tags", {})
             tag_entries = tags.setdefault(self.app_tag, {})
@@ -416,13 +425,64 @@ class RealDebridManager(BaseDownloadClient):
             self._save_tracked_torrents(payload)
 
     def _get_tracked_ids(self) -> set[str]:
-        with self._tracked_lock:
+        with _TRACKED_FILE_LOCK:
             payload = self._load_tracked_torrents()
         tags = payload.get("tags") or {}
         tag_entries = tags.get(self.app_tag)
         if isinstance(tag_entries, dict):
             return set(tag_entries.keys())
         return set()
+
+    def _set_local_progress(
+        self,
+        torrent_id: str,
+        state: str,
+        bytes_downloaded: Optional[int] = None,
+        total_bytes: Optional[int] = None,
+        force: bool = False,
+    ) -> None:
+        """Persist the local (our own) file-transfer progress for a torrent,
+        distinct from Real-Debrid's own remote caching progress/state."""
+        now = time.time()
+        with _TRACKED_FILE_LOCK:
+            payload = self._load_tracked_torrents()
+            tags = payload.setdefault("tags", {})
+            tag_entries = tags.setdefault(self.app_tag, {})
+            entry = tag_entries.setdefault(str(torrent_id), {})
+            existing_local = entry.get("local") or {}
+
+            if not force and state == "downloading":
+                last_write = existing_local.get("updated_at", 0)
+                if now - last_write < _LOCAL_PROGRESS_MIN_INTERVAL_SEC:
+                    return
+
+            entry["local"] = {
+                "state": state,
+                "bytes_downloaded": bytes_downloaded,
+                "total_bytes": total_bytes,
+                "updated_at": now,
+            }
+            self._save_tracked_torrents(payload)
+
+    def _get_local_progress(self, torrent_id: str) -> Dict[str, Any]:
+        with _TRACKED_FILE_LOCK:
+            payload = self._load_tracked_torrents()
+        tags = payload.get("tags") or {}
+        tag_entries = tags.get(self.app_tag) or {}
+        entry = tag_entries.get(str(torrent_id)) or {}
+        local = entry.get("local") or {}
+
+        state = local.get("state", "pending")
+        bytes_downloaded = local.get("bytes_downloaded")
+        total_bytes = local.get("total_bytes")
+
+        progress: Optional[float] = None
+        if state == "complete":
+            progress = 100.0
+        elif bytes_downloaded is not None and total_bytes:
+            progress = round(min(bytes_downloaded / total_bytes * 100, 100), 2)
+
+        return {"state": state, "progress": progress}
 
     def _refresh_access_token(self) -> str:
         if not self.client_id or not self.client_secret or not self.refresh_token:
@@ -557,7 +617,13 @@ class RealDebridManager(BaseDownloadClient):
         all_ids = [str(file_info.get("id")) for file_info in files if file_info.get("id") is not None]
         return ",".join(all_ids) if all_ids else "all"
 
-    def _download_file(self, url: str, target_dir: Path, filename: str) -> None:
+    def _download_file(
+        self,
+        url: str,
+        target_dir: Path,
+        filename: str,
+        on_chunk: Optional[Any] = None,
+    ) -> None:
         target_dir.mkdir(parents=True, exist_ok=True)
         safe_name = sanitize_title(filename).replace('/', '_').replace('\\', '_')
         output_path = target_dir / safe_name
@@ -569,38 +635,76 @@ class RealDebridManager(BaseDownloadClient):
                 for chunk in response.iter_content(chunk_size=1024 * 1024):
                     if chunk:
                         output_file.write(chunk)
+                        if on_chunk:
+                            on_chunk(len(chunk))
 
     def add_torrent(self, magnet_link: str, save_path: str) -> bool:
         torrent_id = self._add_magnet(magnet_link)
         self._track_torrent(torrent_id, Path(save_path).name)
+        # Real-Debrid still needs to cache the torrent on its own servers
+        # before we can start streaming the file down ourselves.
+        self._set_local_progress(torrent_id, state="pending", force=True)
 
-        info = self._wait_for_status(
-            torrent_id,
-            {"waiting_files_selection", "queued", "downloading", "downloaded", "magnet_conversion"},
-        )
+        try:
+            info = self._wait_for_status(
+                torrent_id,
+                {"waiting_files_selection", "queued", "downloading", "downloaded", "magnet_conversion"},
+            )
 
-        current_status = (info.get("status") or "").lower()
-        if current_status == "waiting_files_selection" or not info.get("links"):
-            selected_files = self._choose_file_ids(info.get("files") or [])
-            self._select_files(torrent_id, selected_files)
+            current_status = (info.get("status") or "").lower()
+            if current_status == "waiting_files_selection" or not info.get("links"):
+                selected_files = self._choose_file_ids(info.get("files") or [])
+                self._select_files(torrent_id, selected_files)
 
-        downloaded_info = self._wait_for_status(torrent_id, {"downloaded"})
-        host_links = downloaded_info.get("links") or []
-        if not host_links:
-            raise DownloadClientError("Real-Debrid torrent completed with no host links")
+            downloaded_info = self._wait_for_status(torrent_id, {"downloaded"})
+            host_links = downloaded_info.get("links") or []
+            if not host_links:
+                raise DownloadClientError("Real-Debrid torrent completed with no host links")
 
-        title_segment = sanitize_title(Path(save_path).name) if save_path else "audiobook"
-        target_dir = Path(self.downloads_dir) / title_segment
+            title_segment = sanitize_title(Path(save_path).name) if save_path else "audiobook"
+            target_dir = Path(self.downloads_dir) / title_segment
 
-        for link in host_links:
-            unrestricted = self._unrestrict_link(link)
-            download_url = unrestricted.get("download")
-            filename = unrestricted.get("filename") or f"{torrent_id}.bin"
-            if not download_url:
-                raise DownloadClientError("Real-Debrid unrestrict/link returned no download URL")
-            self._download_file(download_url, target_dir, filename)
+            total_downloaded = 0
+            total_expected = 0
+            known_total = True
+            self._set_local_progress(torrent_id, state="downloading", bytes_downloaded=0, total_bytes=None, force=True)
 
-        return True
+            for link in host_links:
+                unrestricted = self._unrestrict_link(link)
+                download_url = unrestricted.get("download")
+                filename = unrestricted.get("filename") or f"{torrent_id}.bin"
+                if not download_url:
+                    raise DownloadClientError("Real-Debrid unrestrict/link returned no download URL")
+
+                file_size = int(unrestricted.get("filesize") or 0)
+                if file_size > 0:
+                    total_expected += file_size
+                else:
+                    known_total = False
+
+                def _on_chunk(chunk_len: int) -> None:
+                    nonlocal total_downloaded
+                    total_downloaded += chunk_len
+                    self._set_local_progress(
+                        torrent_id,
+                        state="downloading",
+                        bytes_downloaded=total_downloaded,
+                        total_bytes=total_expected if known_total else None,
+                    )
+
+                self._download_file(download_url, target_dir, filename, on_chunk=_on_chunk)
+
+            self._set_local_progress(
+                torrent_id,
+                state="complete",
+                bytes_downloaded=total_downloaded,
+                total_bytes=total_downloaded,
+                force=True,
+            )
+            return True
+        except Exception:
+            self._set_local_progress(torrent_id, state="failed", force=True)
+            raise
 
     def get_torrents(self) -> List[Dict[str, Any]]:
         response = self._request("GET", "/torrents")
@@ -619,13 +723,20 @@ class RealDebridManager(BaseDownloadClient):
                 continue
 
             bytes_total = int(torrent.get("bytes") or 0)
-            progress = float(torrent.get("progress") or 0)
+            rd_progress = float(torrent.get("progress") or 0)
+            local = self._get_local_progress(torrent_id)
+
             normalized.append(
                 {
                     "name": torrent.get("filename", "Unknown"),
-                    "progress": round(progress, 2),
-                    "state": torrent.get("status", "unknown"),
                     "size": f"{bytes_total / (1024 * 1024):.2f} MB" if bytes_total else "Unknown",
+                    # What's actually landed in our own download folder.
+                    "progress": local["progress"] if local["progress"] is not None else 0,
+                    "state": local["state"],
+                    # Real-Debrid's own remote caching status - can already say
+                    # "downloaded"/100% while our local copy is still streaming in.
+                    "rd_progress": round(rd_progress, 2),
+                    "rd_state": torrent.get("status", "unknown"),
                 }
             )
 
