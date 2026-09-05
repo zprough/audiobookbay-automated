@@ -205,6 +205,16 @@ def status():
     return render_template("status.html", torrents=torrents)
 
 
+@app.route("/status/data")
+def status_data():
+    """JSON feed used by status.html to poll for live progress updates."""
+    try:
+        torrents = get_torrents()
+    except DownloadClientError as exc:
+        return jsonify({"torrents": [], "error": str(exc)}), 200
+    return jsonify({"torrents": torrents, "error": None})
+
+
 @app.route("/settings", methods=["GET", "POST"])
 def settings():
     success_message = None

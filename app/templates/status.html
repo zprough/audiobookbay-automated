@@ -10,12 +10,15 @@
 <div class="title-container">
     <h1>Torrent Status</h1>
 </div>
+<div id="status-error">
 {% if error %}
 <div class="error-message">{{ error }}</div>
 {% endif %}
+</div>
 {% if status_notice %}
 <div class="status-notice">{{ status_notice }}</div>
 {% endif %}
+<div id="status-table-container">
 {% if torrents %}
 <table>
     <thead>
@@ -27,7 +30,7 @@
             <th>Size</th>
         </tr>
     </thead>
-    <tbody>
+    <tbody id="status-table-body">
         {% for torrent in torrents %}
         <tr>
             <td>{{ torrent.name }}</td>
@@ -48,4 +51,76 @@
 {% else %}
 <p>No active downloads or jobs found.</p>
 {% endif %}
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const STATUS_POLL_INTERVAL_MS = 3000;
+
+    function escapeHtml(value) {
+        const div = document.createElement('div');
+        div.textContent = value === undefined || value === null ? '' : value;
+        return div.innerHTML;
+    }
+
+    function renderStatus(data) {
+        const errorContainer = document.getElementById('status-error');
+        errorContainer.innerHTML = data.error
+            ? `<div class="error-message">${escapeHtml(data.error)}</div>`
+            : '';
+
+        const tableContainer = document.getElementById('status-table-container');
+        const torrents = data.torrents || [];
+
+        if (!torrents.length) {
+            tableContainer.innerHTML = '<p>No active downloads or jobs found.</p>';
+            return;
+        }
+
+        const rows = torrents.map((torrent) => {
+            const rdCell = torrent.rd_state !== undefined && torrent.rd_state !== null
+                ? `${escapeHtml(torrent.rd_progress)}% (${escapeHtml(torrent.rd_state)})`
+                : 'N/A';
+            return `
+                <tr>
+                    <td>${escapeHtml(torrent.name)}</td>
+                    <td>${escapeHtml(torrent.progress)}%</td>
+                    <td>${escapeHtml(torrent.state)}</td>
+                    <td>${rdCell}</td>
+                    <td>${escapeHtml(torrent.size)}</td>
+                </tr>`;
+        }).join('');
+
+        tableContainer.innerHTML = `
+            <table>
+                <thead>
+                    <tr>
+                        <th>Title</th>
+                        <th>Local Progress</th>
+                        <th>Local State</th>
+                        <th>Real-Debrid Cache</th>
+                        <th>Size</th>
+                    </tr>
+                </thead>
+                <tbody id="status-table-body">${rows}</tbody>
+            </table>`;
+    }
+
+    async function pollStatus() {
+        try {
+            const response = await fetch('/status/data', { cache: 'no-store' });
+            if (!response.ok) {
+                return;
+            }
+            const data = await response.json();
+            renderStatus(data);
+        } catch (err) {
+            // Network hiccup - keep the last known state and try again on the next tick.
+            console.warn('Status poll failed:', err);
+        }
+    }
+
+    setInterval(pollStatus, STATUS_POLL_INTERVAL_MS);
+</script>
 {% endblock %}

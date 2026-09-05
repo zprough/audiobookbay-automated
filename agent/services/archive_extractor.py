@@ -24,10 +24,17 @@ _SPLIT_VOLUME = re.compile(r"\.part0*[2-9]\d*\.rar$|\.r\d{2,}$", re.IGNORECASE)
 
 
 class ArchiveExtractorService:
-	"""Extracts .rar/.zip/.7z downloads into a work directory using 7-Zip."""
+	"""Extracts .rar/.zip/.7z downloads into a work directory.
 
-	def __init__(self, binary: str = "7zz") -> None:
+	.rar is extracted with bsdtar (libarchive): 7-Zip's RAR reader has been
+	observed to reject real, non-corrupt RAR releases ("Cannot open the file
+	as archive") that bsdtar and other RAR-aware tools extract without issue.
+	.zip/.7z continue to use 7-Zip, which handles those formats fine.
+	"""
+
+	def __init__(self, binary: str = "7zz", rar_binary: str = "bsdtar") -> None:
 		self.binary = binary
+		self.rar_binary = rar_binary
 
 	def extract_if_archive(self, source_path: Path, work_dir: Path) -> Path:
 		"""Return the path the inspector should scan: `source_path` unchanged
@@ -65,8 +72,13 @@ class ArchiveExtractorService:
 		return found
 
 	def _extract_one(self, archive: Path, extract_dir: Path) -> None:
+		if archive.suffix.lower() == ".rar":
+			command = [self.rar_binary, "-xf", str(archive), "-C", str(extract_dir)]
+		else:
+			command = [self.binary, "x", "-y", f"-o{extract_dir}", str(archive)]
+
 		result = subprocess.run(
-			[self.binary, "x", "-y", f"-o{extract_dir}", str(archive)],
+			command,
 			capture_output=True,
 			text=True,
 			timeout=600,
