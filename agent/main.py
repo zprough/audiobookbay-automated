@@ -9,6 +9,7 @@ from agent.adapters.picard import PicardAdapter
 from agent.adapters.tone import ToneAdapter
 from agent.config import Settings, configure_logging
 from agent.pipelines.audiobook_pipeline import AudiobookPipeline
+from agent.services.archive_extractor import ArchiveExtractorService
 from agent.services.converter import ConverterService
 from agent.services.cover_art import CoverArtService
 from agent.services.decision_service import DecisionService
@@ -31,6 +32,7 @@ def build_worker(settings: Settings) -> tuple[Worker, WatcherService]:
 	organizer = OrganizerService(filesystem, settings.library_dir)
 	validator = ValidatorService()
 	audiobookshelf = AudiobookshelfAdapter(settings)
+	archives = ArchiveExtractorService()
 
 	pipeline = AudiobookPipeline(
 		filesystem=filesystem,
@@ -42,6 +44,7 @@ def build_worker(settings: Settings) -> tuple[Worker, WatcherService]:
 		organizer=organizer,
 		validator=validator,
 		audiobookshelf=audiobookshelf,
+		archives=archives,
 		work_root=settings.work_dir,
 		failed_root=settings.failed_dir,
 	)

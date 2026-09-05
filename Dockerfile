@@ -25,6 +25,8 @@ ENV M4B_TOOL_VERSION=v0.5.2
 #  - libstdc++ / libgomp: runtime libs needed by the mp4v2/fdkaac binaries below
 #  - wget / ca-certificates: fetching the m4b-tool.phar release
 #  - supervisor: runs the web app and the agent worker as two supervised processes
+#  - 7zip: extracts .rar/.zip/.7z downloads (AudiobookBay often ships these
+#    instead of raw audio files) before the agent scans for audio files
 RUN apk add --no-cache --update \
         ffmpeg \
         libstdc++ \
@@ -43,6 +45,7 @@ RUN apk add --no-cache --update \
         wget \
         ca-certificates \
         supervisor \
+        7zip \
     && ln -sf /usr/bin/php83 /usr/bin/php
 
 # Copy prebuilt tone / mp4v2 / fdkaac binaries (and mp4v2's shared libs) from

@@ -7,6 +7,7 @@ from pathlib import Path
 from agent.adapters.audiobookshelf import AudiobookshelfAdapter
 from agent.models.job import Job
 from agent.models.result import PipelineResult
+from agent.services.archive_extractor import ArchiveExtractorService
 from agent.services.converter import ConverterService
 from agent.services.cover_art import CoverArtService
 from agent.services.decision_service import DecisionService
@@ -31,6 +32,7 @@ class AudiobookPipeline:
 		organizer: OrganizerService,
 		validator: ValidatorService,
 		audiobookshelf: AudiobookshelfAdapter,
+		archives: ArchiveExtractorService,
 		work_root: Path,
 		failed_root: Path,
 	) -> None:
@@ -43,17 +45,20 @@ class AudiobookPipeline:
 		self.organizer = organizer
 		self.validator = validator
 		self.audiobookshelf = audiobookshelf
+		self.archives = archives
 		self.work_root = work_root
 		self.failed_root = failed_root
 
 	def run(self, job: Job) -> PipelineResult:
 		job.mark_running()
 		logger.info("job_start id=%s source=%s", job.id, job.source_path)
+		work_dir = None
 		try:
-			context = self.inspector.inspect(job.source_path)
+			work_dir = self.filesystem.create_job_work_dir(self.work_root, job.source_path)
+			effective_source = self.archives.extract_if_archive(job.source_path, work_dir)
+			context = self.inspector.inspect(effective_source)
 			decision = self.decisions.decide(context)
 
-			work_dir = self.filesystem.create_job_work_dir(self.work_root, job.source_path)
 			conversion = self.converter.run(context, decision, work_dir)
 			if not conversion.ok or conversion.output_path is None:
 				raise RuntimeError(conversion.message)
@@ -90,6 +95,9 @@ class AudiobookPipeline:
 				message=f"Processing failed: {error}",
 				needs_human_review=True,
 			)
+		finally:
+			if work_dir is not None:
+				shutil.rmtree(work_dir, ignore_errors=True)
 
 	def _cleanup_source(self, source_path: Path) -> None:
 		# Prevents bootstrap_existing/watcher from reprocessing a finished folder
